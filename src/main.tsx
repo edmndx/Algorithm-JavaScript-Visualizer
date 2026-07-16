@@ -1,0 +1,16 @@
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import MainPage from './ui/MainPage';
+import './styles.css';
+
+const root = document.getElementById('root');
+
+if (!root) {
+  throw new Error('Missing element: <div id="root"></div>');
+}
+
+createRoot(root).render(
+  <StrictMode>
+    <MainPage />
+  </StrictMode>,
+);
