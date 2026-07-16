@@ -1,0 +1,66 @@
+{
+  "name": "algorithm-javascript-visualizer",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Algorithm JavaScript Visualizer is a local-first tool for visualizing JavaScript algorithms. It converts user-written JavaScript code into structured JSON algorithm states and renders those states as interactive D3.js and Canvas visualizations.",
+  "private": true,
+  "engines": {
+    "node": ">=22 <26",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/edmndx/Algorithm-JavaScript-Visualizer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/edmndx/Algorithm-JavaScript-Visualizer/issues"
+  },
+  "homepage": "https://github.com/edmndx/Algorithm-JavaScript-Visualizer#readme",
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "@xstate/react": "^6.1.0",
+    "clsx": "^2.1.1",
+    "comlink": "^4.4.2",
+    "d3": "^7.9.0",
+    "lucide-react": "^1.24.0",
+    "monaco-editor": "^0.53.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwindcss": "^4.3.2",
+    "tw-animate-css": "^1.4.0",
+    "xstate": "^5.32.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@babel/eslint-parser": "^8.0.1",
+    "@babel/plugin-syntax-jsx": "^8.0.1",
+    "@babel/preset-typescript": "^8.0.1",
+    "@eslint/js": "^9.39.5",
+    "@types/d3": "^7.4.3",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "prettier": "^3.9.5",
+    "tsx": "^4.23.0",
+    "typescript": "7.0.2",
+    "vite": "^8.1.4"
+  }
+}

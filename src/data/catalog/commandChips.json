@@ -1,0 +1,6 @@
+[
+  { "label": "compare", "command": "trace.compare(left, right);" },
+  { "label": "swap", "command": "trace.swap(indexA, indexB);" },
+  { "label": "visit", "command": "trace.visit(nodeId);" },
+  { "label": "mark", "command": "trace.mark(index);" }
+]

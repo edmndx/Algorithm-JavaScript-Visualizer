@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.turbo/
+
+# Local implementation plans
+PLAN*.md
+PLAN*.txt
+
+# Environment and editor files
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+*.log

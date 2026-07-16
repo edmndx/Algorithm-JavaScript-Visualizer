@@ -1,0 +1,23 @@
+[
+  {
+    "id": "insertion-sort",
+    "name": "Insertion sort",
+    "category": "Sorting",
+    "description": "Build a sorted prefix one item at a time.",
+    "code": "const values = [8, 3, 5, 1];\nvalues.sort((left, right) => left - right);\nconsole.log(values);"
+  },
+  {
+    "id": "binary-search",
+    "name": "Binary search",
+    "category": "Searching",
+    "description": "Narrow a sorted range until the target is found.",
+    "code": "const values = [1, 3, 5, 8, 13];\nconst target = 8;\nconst result = values.indexOf(target);\nconsole.log(result);"
+  },
+  {
+    "id": "breadth-first-search",
+    "name": "Breadth-first search",
+    "category": "Graphs",
+    "description": "Visit graph nodes level by level.",
+    "code": "const queue = ['start'];\nwhile (queue.length > 0) {\n  console.log(queue.shift());\n}"
+  }
+]
