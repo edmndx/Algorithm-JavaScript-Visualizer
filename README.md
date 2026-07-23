@@ -63,20 +63,23 @@ Supported visualization structures include arrays, trees, graphs, matrices, and 
 
 ## Architecture
 
-The source tree is organized by dependency direction and feature ownership:
+The application separates the main responsibilities into independent parts:
 
 ```txt
-src/
-├── app/                   # Application composition
-├── data/
-│   └── catalog/           # Algorithm metadata and starter code
-├── ui/                    # Application UI
-├── tests/                 # Cross-feature and initialization tests
-├── main.tsx               # Browser entry point
-└── styles.css             # Global rules and design tokens
+React UI
+  -> editor, sidebar, controls, output panels
+
+XState
+  -> lab state, runner state, playback state
+
+Runner / Worker
+  -> code analysis, trace generation, validation, frame preparation
+
+D3 + Canvas Renderer
+  -> layout, drawing, viewport control, object inspection
 ```
 
-New directories should be introduced only when real code needs a distinct responsibility. Avoid speculative placeholders and empty folder hierarchies.
+React manages the interface, XState controls the application and playback flow, and Canvas renders the algorithm visual objects.
 
 ---
 
