@@ -1,0 +1,152 @@
+@reference './styles.css';
+
+/* MainPage.tsx */
+.main-page {
+  @apply flex h-screen w-screen flex-col overflow-hidden text-foreground;
+}
+
+.main-page-content {
+  @apply flex min-h-0 flex-1;
+}
+
+.main-page-workspace {
+  @apply flex min-w-0 flex-1 flex-col;
+}
+
+.main-page-workspace-content {
+  @apply flex min-h-0 flex-1 flex-col p-4;
+}
+
+/* AppHeader.tsx */
+.app-header {
+  @apply flex h-16 shrink-0 items-center border-b border-border glass-panel;
+}
+
+.app-header-brand {
+  @apply flex h-full w-72 items-center gap-3 border-r border-border px-5;
+}
+
+.app-header-brand-mark {
+  @apply grid h-9 w-9 place-items-center rounded-md bg-gradient-to-br from-accent-red to-accent-blue font-semibold text-white;
+}
+
+.app-header-brand-text {
+  @apply leading-tight;
+}
+
+.app-header-brand-name {
+  @apply font-display text-[15px] font-semibold tracking-tight;
+}
+
+.app-header-brand-subtitle {
+  @apply text-[11px] uppercase tracking-[0.14em] text-muted-foreground;
+}
+
+.app-header-content {
+  @apply flex flex-1 items-center justify-between px-6;
+}
+
+.app-header-algorithm-title {
+  @apply font-display text-lg font-semibold tracking-tight;
+}
+
+.app-header-algorithm-meta {
+  @apply text-xs text-muted-foreground;
+}
+
+.app-header-actions {
+  @apply flex items-center gap-3 text-sm;
+}
+
+.app-header-control {
+  @apply rounded-md border border-border px-3 py-1.5;
+}
+
+.app-header-ready-status {
+  @apply rounded-md border border-accent-green/40 bg-accent-green/10 px-3 py-1.5 text-accent-green;
+}
+
+.app-header-run-control {
+  @apply rounded-md bg-accent-red px-3 py-1.5 font-semibold text-white;
+}
+
+/* CatalogSidebar.tsx */
+.catalog-sidebar {
+  @apply flex w-72 shrink-0 flex-col border-r border-border bg-panel/60;
+}
+
+.catalog-sidebar-search-area {
+  @apply p-4;
+}
+
+.catalog-sidebar-search-input {
+  @apply w-full rounded-md border border-border bg-surface px-3 py-2 text-sm;
+}
+
+.catalog-sidebar-navigation {
+  @apply flex-1 space-y-1 px-2 pb-4;
+}
+
+.catalog-sidebar-section-title {
+  @apply px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground;
+}
+
+.catalog-sidebar-placeholder {
+  @apply px-3 py-2 text-sm text-muted-foreground;
+}
+
+.catalog-sidebar-footer {
+  @apply border-t border-border p-4 text-[11px] text-muted-foreground;
+}
+
+/* VisualizationPanel.tsx */
+.visualization-panel {
+  @apply flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-surface/30;
+}
+
+.visualization-panel-toolbar {
+  @apply flex items-center justify-end gap-2 border-b border-border p-3 text-sm text-muted-foreground;
+}
+
+.visualization-panel-placeholder {
+  @apply grid flex-1 place-items-center p-8 text-center text-muted-foreground;
+}
+
+/* PlaybackControls.tsx */
+.playback-controls {
+  @apply flex items-center justify-between border-t border-border p-3 text-sm text-muted-foreground;
+}
+
+/* ConsolePanel.tsx */
+.console-panel {
+  @apply mt-4 overflow-hidden rounded-lg border border-border bg-panel/70;
+}
+
+.console-panel-heading {
+  @apply border-b border-border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground;
+}
+
+.console-panel-output {
+  @apply p-4 font-mono text-xs text-muted-foreground;
+}
+
+/* CodeEditorPanel.tsx */
+.code-editor-panel {
+  @apply flex w-[520px] shrink-0 flex-col border-l border-border bg-panel/60;
+}
+
+.code-editor-panel-tab {
+  @apply border-b border-border px-4 py-3 text-sm font-medium;
+}
+
+.code-editor-panel-content {
+  @apply min-h-0 flex-1 p-4;
+}
+
+.code-editor-panel-heading {
+  @apply border-b border-border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground;
+}
+
+.code-editor-panel-placeholder {
+  @apply mt-4 whitespace-pre-wrap font-mono text-sm text-muted-foreground;
+}
