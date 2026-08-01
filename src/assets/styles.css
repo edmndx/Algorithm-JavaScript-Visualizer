@@ -76,18 +76,6 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
-    background-image:
-      radial-gradient(
-        circle at 15% 10%,
-        color-mix(in oklab, var(--accent-red) 10%, transparent),
-        transparent 50%
-      ),
-      radial-gradient(
-        circle at 85% 90%,
-        color-mix(in oklab, var(--accent-blue) 10%, transparent),
-        transparent 55%
-      );
-    background-attachment: fixed;
   }
 
   ::selection {
