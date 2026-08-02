@@ -73,30 +73,94 @@
 /* CatalogSidebar.tsx */
 .catalog-sidebar {
   @apply flex w-72 shrink-0 flex-col border-r border-border bg-panel/60;
+  min-width: 18rem;
 }
 
 .catalog-sidebar-search-area {
-  @apply p-4;
+  @apply border-b border-border p-4;
 }
 
 .catalog-sidebar-search-input {
-  @apply w-full rounded-md border border-border bg-surface px-3 py-2 text-sm;
+  @apply w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background-color 150ms ease;
+}
+
+.catalog-sidebar-search-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.catalog-sidebar-search-input:hover {
+  background-color: var(--surface-2);
+}
+
+.catalog-sidebar-search-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-blue) 18%, transparent);
 }
 
 .catalog-sidebar-navigation {
-  @apply flex-1 space-y-1 px-2 pb-4;
+  @apply flex-1 space-y-5 overflow-y-auto px-3 py-4;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .catalog-sidebar-section-title {
-  @apply px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground;
+  @apply px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground;
+}
+
+.catalog-sidebar-category,
+.catalog-sidebar-algorithm {
+  @apply w-full rounded-md text-left text-sm outline-none;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+
+.catalog-sidebar-category-group {
+  @apply mb-1;
+}
+
+.catalog-sidebar-category {
+  @apply flex items-center justify-between px-3 py-2 text-muted-foreground;
+}
+
+.catalog-sidebar-category:hover,
+.catalog-sidebar-category:focus-visible {
+  @apply bg-surface-2 text-foreground;
+}
+
+.catalog-sidebar-category[aria-expanded='true'] {
+  @apply bg-accent-blue/10 text-accent-blue;
+  box-shadow: inset 2px 0 0 var(--accent-blue);
+}
+
+.catalog-sidebar-algorithm-list {
+  @apply ml-3 space-y-1 border-l border-border pl-2;
+}
+
+.catalog-sidebar-algorithm {
+  @apply border border-transparent px-3 py-2 text-muted-foreground;
+}
+
+.catalog-sidebar-algorithm:hover,
+.catalog-sidebar-algorithm:focus-visible {
+  @apply border-border bg-surface-2 text-foreground;
+}
+
+.catalog-sidebar-algorithm:active {
+  @apply bg-muted;
 }
 
 .catalog-sidebar-placeholder {
-  @apply px-3 py-2 text-sm text-muted-foreground;
+  @apply rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground;
 }
 
 .catalog-sidebar-footer {
-  @apply border-t border-border p-4 text-[11px] text-muted-foreground;
+  @apply border-t border-border px-4 py-3 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground;
 }
 
 /* VisualizationPanel.tsx */
