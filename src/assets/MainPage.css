@@ -10,7 +10,8 @@
 }
 
 .main-page-workspace {
-  @apply flex min-w-0 flex-1 flex-col;
+  @apply grid min-w-0 flex-1;
+  grid-template-columns: minmax(0, 1fr) 520px;
 }
 
 .main-page-workspace-content {
@@ -196,7 +197,7 @@
 
 /* CodeEditorPanel.tsx */
 .code-editor-panel {
-  @apply flex w-[520px] shrink-0 flex-col border-l border-border bg-panel/60;
+  @apply flex min-w-0 flex-col border-l border-border bg-panel/60;
 }
 
 .code-editor-panel-tab {
@@ -204,11 +205,15 @@
 }
 
 .code-editor-panel-content {
-  @apply min-h-0 flex-1 p-4;
+  @apply flex min-h-0 flex-1 flex-col p-4;
 }
 
 .code-editor-panel-heading {
   @apply border-b border-border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground;
+}
+
+.code-editor-panel-editor {
+  @apply min-h-0 flex-1;
 }
 
 .code-editor-panel-placeholder {

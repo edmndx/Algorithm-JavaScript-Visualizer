@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import '../assets/MainPage.css';
 import AppHeader from './components/AppHeader';
 import CatalogSidebar from './components/CatalogSidebar';
-import CodeEditorPanel from './components/CodeEditorPanel';
+import { CodeEditor } from './components/CodeEditorPanel';
 import ConsolePanel from './components/ConsolePanel';
 import VisualizationPanel from './components/VisualizationPanel';
 
 export default function MainPage() {
+  const [code, setCode] = useState('');
+
   return (
     <div className="main-page">
       <AppHeader />
@@ -18,9 +21,9 @@ export default function MainPage() {
             <VisualizationPanel />
             <ConsolePanel />
           </section>
-        </main>
 
-        <CodeEditorPanel />
+          <CodeEditor code={code} onChange={setCode} />
+        </main>
       </div>
     </div>
   );
