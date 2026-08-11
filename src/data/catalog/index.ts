@@ -1,5 +1,5 @@
 import algorithmData from './algorithms.json';
-import commandChipData from './commandChips.json';
+import commandChipData from '../codeEditor/commandChips.json';
 
 export const algorithmCatalog =
   algorithmData as import('./types').AlgorithmCatalogEntry[];
