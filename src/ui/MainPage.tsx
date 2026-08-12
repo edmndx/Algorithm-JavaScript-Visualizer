@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import '../assets/MainPage.css';
+import { loadStarterCode } from '../features/codeEditor';
+import type { AlgorithmCatalogEntry } from '../features/loadData';
 import AppHeader from './components/AppHeader';
 import CatalogSidebar from './components/CatalogSidebar';
 import { CodeEditor } from './components/CodeEditorPanel';
@@ -8,13 +10,20 @@ import VisualizationPanel from './components/VisualizationPanel';
 
 export default function MainPage() {
   const [code, setCode] = useState('');
+  const [selectedAlgorithm, setSelectedAlgorithm] =
+    useState<AlgorithmCatalogEntry | null>(null);
+
+  function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
+    setSelectedAlgorithm(algorithm);
+    setCode(loadStarterCode(algorithm.id) ?? '');
+  }
 
   return (
     <div className="main-page">
-      <AppHeader />
+      <AppHeader algorithm={selectedAlgorithm} />
 
       <div className="main-page-content">
-        <CatalogSidebar />
+        <CatalogSidebar onSelectAlgorithm={selectAlgorithm} />
 
         <main className="main-page-workspace">
           <section className="main-page-workspace-content">

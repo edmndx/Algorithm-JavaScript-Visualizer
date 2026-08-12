@@ -1,6 +1,14 @@
-import { useCatalog } from '../../features/catalog/useCatalog';
+import { useCatalog } from '../../features/useCatalog';
 
-export default function CatalogSidebar() {
+type CatalogSidebarProps = {
+  onSelectAlgorithm: (
+    algorithm: import('../../features/loadData').AlgorithmCatalogEntry,
+  ) => void;
+};
+
+export default function CatalogSidebar({
+  onSelectAlgorithm,
+}: CatalogSidebarProps) {
   const {
     categories,
     visibleAlgorithms,
@@ -16,7 +24,11 @@ export default function CatalogSidebar() {
       {visibleAlgorithms.length > 0 ? (
         visibleAlgorithms.map((algorithm) => (
           <li key={algorithm.id}>
-            <button type="button" className="catalog-sidebar-algorithm">
+            <button
+              type="button"
+              className="catalog-sidebar-algorithm"
+              onClick={() => onSelectAlgorithm(algorithm)}
+            >
               {algorithm.name}
             </button>
           </li>
