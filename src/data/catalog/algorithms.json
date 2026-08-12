@@ -4,14 +4,14 @@
     "name": "Insertion sort",
     "category": "Sorting",
     "description": "Build a sorted prefix one item at a time.",
-    "code": "const values = [8, 3, 5, 1];\nvalues.sort((left, right) => left - right);\nconsole.log(values);"
+    "code": "const values = [8, 3, 5, 1];\n\nfor (let index = 1; index < values.length; index++) {\n  const current = values[index];\n  let position = index - 1;\n\n  while (position >= 0 && values[position] > current) {\n    values[position + 1] = values[position];\n    position--;\n  }\n\n  values[position + 1] = current;\n}\n\nconsole.log(values);"
   },
   {
     "id": "binary-search",
     "name": "Binary search",
     "category": "Searching",
     "description": "Narrow a sorted range until the target is found.",
-    "code": "const values = [1, 3, 5, 8, 13];\nconst target = 8;\nconst result = values.indexOf(target);\nconsole.log(result);"
+    "code": "const values = [1, 3, 5, 8, 13];\nconst target = 8;\nlet left = 0;\nlet right = values.length - 1;\nlet result = -1;\n\nwhile (left <= right) {\n  const middle = Math.floor((left + right) / 2);\n\n  if (values[middle] === target) {\n    result = middle;\n    break;\n  }\n\n  if (values[middle] < target) {\n    left = middle + 1;\n  } else {\n    right = middle - 1;\n  }\n}\n\nconsole.log(result);"
   },
   {
     "id": "in-order-traversal",
@@ -25,7 +25,7 @@
     "name": "Breadth-first search",
     "category": "Graphs",
     "description": "Visit graph nodes level by level.",
-    "code": "const queue = ['start'];\nwhile (queue.length > 0) {\n  console.log(queue.shift());\n}"
+    "code": "const graph = {\n  A: ['B', 'C'],\n  B: ['D'],\n  C: ['E'],\n  D: [],\n  E: []\n};\n\nconst queue = ['A'];\nconst visited = new Set(queue);\n\nwhile (queue.length > 0) {\n  const node = queue.shift();\n  console.log(node);\n\n  for (const neighbor of graph[node]) {\n    if (!visited.has(neighbor)) {\n      visited.add(neighbor);\n      queue.push(neighbor);\n    }\n  }\n}"
   },
   {
     "id": "generate-permutations",
@@ -33,19 +33,5 @@
     "category": "Backtracking",
     "description": "Build every ordering by trying and undoing each choice.",
     "code": "function permutations(values, path = []) {\n  if (values.length === 0) {\n    console.log(path);\n    return;\n  }\n\n  for (let index = 0; index < values.length; index++) {\n    const remaining = values.filter((_, itemIndex) => itemIndex !== index);\n    permutations(remaining, [...path, values[index]]);\n  }\n}\n\npermutations([1, 2, 3]);"
-  },
-  {
-    "id": "activity-selection",
-    "name": "Activity selection",
-    "category": "Greedy",
-    "description": "Choose the next activity that finishes earliest.",
-    "code": "const activities = [\n  { name: 'A', start: 1, end: 3 },\n  { name: 'B', start: 2, end: 5 },\n  { name: 'C', start: 4, end: 7 }\n];\n\nactivities.sort((left, right) => left.end - right.end);\nconst selected = [];\nlet lastEnd = -Infinity;\n\nfor (const activity of activities) {\n  if (activity.start >= lastEnd) {\n    selected.push(activity.name);\n    lastEnd = activity.end;\n  }\n}\n\nconsole.log(selected);"
-  },
-  {
-    "id": "reservoir-sampling",
-    "name": "Reservoir sampling",
-    "category": "Probabilistic",
-    "description": "Select a uniformly random item from a stream.",
-    "code": "const stream = ['A', 'B', 'C', 'D', 'E'];\nlet sample = stream[0];\n\nfor (let index = 1; index < stream.length; index++) {\n  if (Math.random() < 1 / (index + 1)) {\n    sample = stream[index];\n  }\n}\n\nconsole.log(sample);"
   }
 ]
