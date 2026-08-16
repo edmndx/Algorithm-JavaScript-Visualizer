@@ -57,7 +57,6 @@ Supported visualization structures include arrays, trees, graphs, matrices, and 
 - XState
 - Monaco Editor
 - Zod
-- Vitest
 
 ---
 
@@ -97,12 +96,6 @@ Start the development server:
 npm run dev
 ```
 
-Run tests:
-
-```bash
-npm run test
-```
-
 Build the project:
 
 ```bash
@@ -114,14 +107,6 @@ Preview the production build:
 ```bash
 npm run preview
 ```
-
----
-
-## Testing
-
-The project uses Vitest for unit and integration testing.
-
-The main tested areas are trace validation, playback state logic, command parsing, editor-related logic, visualization preparation, and the code-to-trace flow.
 
 ---
 

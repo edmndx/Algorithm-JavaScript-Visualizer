@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import '../assets/MainPage.css';
 import { loadStarterCode } from '../features/codeEditor';
-import type { AlgorithmCatalogEntry } from '../features/loadData';
+import {
+  algorithmCatalog,
+  type AlgorithmCatalogEntry,
+} from '../features/loadData';
 import AppHeader from './components/AppHeader';
 import CatalogSidebar from './components/CatalogSidebar';
-import { CodeEditor } from './components/CodeEditorPanel';
+import CodeEditorPanel from './components/CodeEditorPanel';
 import ConsolePanel from './components/ConsolePanel';
 import VisualizationPanel from './components/VisualizationPanel';
 
+const DEFAULT_ALGORITHM = algorithmCatalog[0] ?? null;
+
 export default function MainPage() {
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(DEFAULT_ALGORITHM?.code ?? '');
   const [selectedAlgorithm, setSelectedAlgorithm] =
-    useState<AlgorithmCatalogEntry | null>(null);
+    useState<AlgorithmCatalogEntry | null>(DEFAULT_ALGORITHM);
 
   function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
     setSelectedAlgorithm(algorithm);
@@ -23,7 +28,10 @@ export default function MainPage() {
       <AppHeader algorithm={selectedAlgorithm} />
 
       <div className="main-page-content">
-        <CatalogSidebar onSelectAlgorithm={selectAlgorithm} />
+        <CatalogSidebar
+          activeAlgorithmId={selectedAlgorithm?.id ?? null}
+          onSelectAlgorithm={selectAlgorithm}
+        />
 
         <main className="main-page-workspace">
           <section className="main-page-workspace-content">
@@ -31,7 +39,11 @@ export default function MainPage() {
             <ConsolePanel />
           </section>
 
-          <CodeEditor code={code} onChange={setCode} />
+          <CodeEditorPanel
+            code={code}
+            fileName={`${selectedAlgorithm?.id ?? 'starter-code'}.js`}
+            onChange={setCode}
+          />
         </main>
       </div>
     </div>
