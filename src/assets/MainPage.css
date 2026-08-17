@@ -701,29 +701,130 @@
 
 .code-editor-panel-tabs {
   display: flex;
+  min-width: 0;
   flex: none;
   align-items: stretch;
+  overflow-x: auto;
   border-bottom: 1px solid var(--border);
-  padding: 0 1rem;
+  padding: 0 0.5rem;
+  scrollbar-width: none;
+}
+
+.code-editor-panel-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .code-editor-panel-tab {
   position: relative;
   display: flex;
+  min-width: 0;
+  max-width: 9.5rem;
+  flex: 0 1 auto;
   align-items: center;
-  gap: 0.5rem;
-  border-bottom: 2px solid var(--accent-red);
-  padding: 0.75rem;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-foreground);
   font-size: 0.875rem;
   font-weight: 500;
 }
 
-.code-editor-panel-action-placeholder {
+.code-editor-panel-tab--active {
+  border-bottom-color: var(--accent-red);
+  background: color-mix(in oklab, var(--surface) 45%, transparent);
+  color: var(--foreground);
+}
+
+.code-editor-panel-tab-name,
+.code-editor-panel-tab-close,
+.code-editor-panel-add-tab {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.code-editor-panel-tab-name {
   display: flex;
+  min-width: 0;
+  height: 2.75rem;
+  flex: 1;
   align-items: center;
-  padding: 0 0.5rem;
+  padding: 0 0.75rem;
+}
+
+.code-editor-panel-tab-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-editor-panel-tab-input {
+  width: 7rem;
+  min-width: 0;
+  margin: 0 0.375rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.25rem;
+  outline: 0;
+  background: var(--surface);
+  padding: 0.25rem 0.375rem;
+  color: var(--foreground);
+  font: inherit;
+}
+
+.code-editor-panel-tab-input:focus {
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent-red) 20%, transparent);
+}
+
+.code-editor-panel-tab-close {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  margin-right: 0.375rem;
+  place-items: center;
+  border-radius: 0.25rem;
+  opacity: 0.55;
+}
+
+.code-editor-panel-tab-close svg,
+.code-editor-panel-add-tab svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.code-editor-panel-add-tab {
+  display: grid;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.75rem;
+  place-items: center;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+}
+
+.code-editor-panel-tab-name:hover,
+.code-editor-panel-tab-name:focus-visible,
+.code-editor-panel-tab-close:hover,
+.code-editor-panel-tab-close:focus-visible,
+.code-editor-panel-add-tab:hover,
+.code-editor-panel-add-tab:focus-visible {
+  color: var(--foreground);
+}
+
+.code-editor-panel-tab-close:hover,
+.code-editor-panel-tab-close:focus-visible,
+.code-editor-panel-add-tab:hover,
+.code-editor-panel-add-tab:focus-visible {
+  background: var(--surface-2);
+  opacity: 1;
+}
+
+.code-editor-panel-tab-name:focus-visible,
+.code-editor-panel-tab-close:focus-visible,
+.code-editor-panel-add-tab:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--ring) 75%, transparent);
+  outline-offset: -2px;
 }
 
 .code-editor-panel-editor {
