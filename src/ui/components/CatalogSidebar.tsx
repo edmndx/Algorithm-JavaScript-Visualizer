@@ -57,7 +57,7 @@ export default function CatalogSidebar({
   }
 
   return (
-    <aside className="catalog-sidebar">
+    <aside className="catalog-sidebar" id="catalog-sidebar">
       <div className="catalog-sidebar-search-area">
         <Search className="catalog-sidebar-search-icon" aria-hidden="true" />
         <input
