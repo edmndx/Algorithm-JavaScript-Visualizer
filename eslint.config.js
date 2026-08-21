@@ -27,6 +27,9 @@ export default [
     rules: {
       ...reactHooks.configs.recommended.rules,
       'no-undef': 'off',
+      // Babel removes type-only references before core ESLint rules run.
+      // TypeScript-aware no-unused-vars can replace this once it supports TS 7.
+      'no-unused-vars': 'off',
       'react/jsx-uses-react': 'off',
       'react/jsx-uses-vars': 'error',
       'react-refresh/only-export-components': [
