@@ -920,11 +920,6 @@
   height: 0.875rem;
 }
 
-.console-panel-action-placeholder {
-  color: var(--muted-foreground);
-  font-size: 0.6875rem;
-}
-
 .console-panel-output {
   min-height: 0;
   overflow-y: auto;
