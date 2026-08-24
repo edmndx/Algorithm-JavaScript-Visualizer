@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import '../assets/MainPage.css';
 import { loadStarterCode } from '../features/codeEditor';
@@ -6,6 +6,8 @@ import {
   algorithmCatalog,
   type AlgorithmCatalogEntry,
 } from '../features/loadData';
+import { SandboxClient } from '../sandbox';
+import type { TraceCommand } from '../protocol/traceTypes';
 import AppHeader from './components/AppHeader';
 import CatalogSidebar from './components/CatalogSidebar';
 import CodeEditorPanel from './components/CodeEditorPanel';
@@ -16,12 +18,34 @@ const DEFAULT_ALGORITHM = algorithmCatalog[0] ?? null;
 
 export default function MainPage() {
   const [code, setCode] = useState(DEFAULT_ALGORITHM?.code ?? '');
+  const [activeCode, setActiveCode] = useState(code);
   const [selectedAlgorithm, setSelectedAlgorithm] =
     useState<AlgorithmCatalogEntry | null>(DEFAULT_ALGORITHM);
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
   const [hasEditorErrors, setHasEditorErrors] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [, setTraceCommands] = useState<readonly TraceCommand[]>([]);
+  const sandboxClient = useRef<SandboxClient | null>(null);
+  const runSequence = useRef(0);
+
+  useEffect(() => {
+    let client: SandboxClient;
+
+    try {
+      client = new SandboxClient();
+    } catch {
+      return;
+    }
+
+    sandboxClient.current = client;
+
+    return () => {
+      runSequence.current += 1;
+      sandboxClient.current = null;
+      client.dispose();
+    };
+  }, []);
 
   function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
     setSelectedAlgorithm(algorithm);
@@ -29,11 +53,27 @@ export default function MainPage() {
     setHasEditorErrors(false);
   }
 
-  function runAlgorithm() {
+  async function runAlgorithm() {
+    const client = sandboxClient.current;
     if (!selectedAlgorithm || isRunning) return;
 
+    if (client === null) return;
+
+    const runId = ++runSequence.current;
     setIsRunning(true);
-    window.setTimeout(() => setIsRunning(false), 900);
+
+    try {
+      const result = await client.run(activeCode);
+      if (runId !== runSequence.current) return;
+
+      if (result.ok) {
+        setTraceCommands(result.commands);
+      }
+    } catch {
+      // Execution failures intentionally leave the console unchanged.
+    } finally {
+      if (runId === runSequence.current) setIsRunning(false);
+    }
   }
 
   const fileStatus = !selectedAlgorithm
@@ -110,6 +150,7 @@ export default function MainPage() {
                 code={code}
                 fileName={`${selectedAlgorithm?.id ?? 'starter-code'}.js`}
                 onChange={setCode}
+                onActiveCodeChange={setActiveCode}
                 onValidationChange={setHasEditorErrors}
               />
               <ConsolePanel />

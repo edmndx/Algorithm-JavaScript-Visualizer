@@ -1,6 +1,6 @@
 import Editor from '@monaco-editor/react';
 import { Plus, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const PRIMARY_TAB_ID = 'algorithm-source';
 const MAX_NEW_TABS = 3;
@@ -51,6 +51,7 @@ type CodeEditorPanelProps = {
   code: string;
   fileName: string;
   onChange: (code: string) => void;
+  onActiveCodeChange: (code: string) => void;
   onValidationChange: (hasErrors: boolean) => void;
 };
 
@@ -68,6 +69,7 @@ export default function CodeEditorPanel({
   code,
   fileName,
   onChange,
+  onActiveCodeChange,
   onValidationChange,
 }: CodeEditorPanelProps) {
   const [tabs, setTabs] = useState<EditorTab[]>([]);
@@ -86,6 +88,10 @@ export default function CodeEditorPanel({
       : fileName;
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
   const activeCode = activeTab?.code ?? code;
+
+  useEffect(() => {
+    onActiveCodeChange(activeCode);
+  }, [activeCode, onActiveCodeChange]);
 
   function addTab() {
     if (tabs.length >= MAX_NEW_TABS) return;

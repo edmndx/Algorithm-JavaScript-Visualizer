@@ -126,7 +126,7 @@ export default function AppHeader({
             onClick={onRun}
           >
             <Play className="app-header-run-icon" aria-hidden="true" />
-            <span>{isRunning ? 'Running' : 'Run'}</span>
+            <span>Run</span>
           </button>
         </div>
       </div>
