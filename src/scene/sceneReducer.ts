@@ -68,14 +68,7 @@ export function reduceTrace(input: unknown): TraceReductionResult {
 
   let scene: SceneState = createInitialScene();
 
-  for (
-    let commandIndex = 0;
-    commandIndex < validation.commands.length;
-    commandIndex += 1
-  ) {
-    const command = validation.commands[commandIndex];
-    if (command === undefined) continue;
-
+  for (const [commandIndex, command] of validation.commands.entries()) {
     try {
       scene = reduceTraceCommand(scene, command);
     } catch (error) {
