@@ -127,20 +127,20 @@ export default function CatalogSidebar({
       <div className="catalog-sidebar-footer">
         <a
           className="catalog-sidebar-author"
-          href="https://github.com/edmundasx"
+          href="https://github.com/edmndx"
           target="_blank"
           rel="noopener noreferrer"
         >
           <img
             className="catalog-sidebar-author-avatar"
-            src="https://github.com/edmundasx.png?size=64"
+            src="https://github.com/edmndx.png?size=64"
             alt=""
             width="24"
             height="24"
             loading="lazy"
             decoding="async"
           />
-          <span>edmundasx</span>
+          <span>edmndx</span>
         </a>
         <span className="catalog-sidebar-license">MIT</span>
       </div>

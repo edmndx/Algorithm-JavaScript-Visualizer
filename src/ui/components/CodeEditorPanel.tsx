@@ -1,6 +1,6 @@
 import Editor from '@monaco-editor/react';
 import { Plus, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 const PRIMARY_TAB_ID = 'algorithm-source';
 const MAX_NEW_TABS = 3;
@@ -36,7 +36,13 @@ const EDITOR_OPTIONS = {
   automaticLayout: true,
   fontFamily: 'JetBrains Mono, ui-monospace, monospace',
   fontSize: 13,
+  wordWrap: 'on',
+  wrappingIndent: 'same',
   scrollBeyondLastLine: false,
+  scrollbar: {
+    horizontal: 'hidden',
+    horizontalScrollbarSize: 0,
+  },
   padding: { top: 16, bottom: 16 },
   renderLineHighlight: 'all',
   smoothScrolling: true,
@@ -51,7 +57,7 @@ type CodeEditorPanelProps = {
   code: string;
   fileName: string;
   onChange: (code: string) => void;
-  onActiveCodeChange: (code: string) => void;
+  onActiveSourceChange: (code: string) => void;
   onValidationChange: (hasErrors: boolean) => void;
 };
 
@@ -69,7 +75,7 @@ export default function CodeEditorPanel({
   code,
   fileName,
   onChange,
-  onActiveCodeChange,
+  onActiveSourceChange,
   onValidationChange,
 }: CodeEditorPanelProps) {
   const [tabs, setTabs] = useState<EditorTab[]>([]);
@@ -87,11 +93,11 @@ export default function CodeEditorPanel({
       ? primaryNameOverride.value
       : fileName;
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
-  const activeCode = activeTab?.code ?? code;
+  const activeTabCode = activeTab?.code ?? code;
 
-  useEffect(() => {
-    onActiveCodeChange(activeCode);
-  }, [activeCode, onActiveCodeChange]);
+  useLayoutEffect(() => {
+    onActiveSourceChange(activeTabCode);
+  }, [activeTabCode, onActiveSourceChange]);
 
   function addTab() {
     if (tabs.length >= MAX_NEW_TABS) return;
@@ -237,7 +243,7 @@ export default function CodeEditorPanel({
           path={`${activeTabId}.js`}
           height="100%"
           language="javascript"
-          value={activeCode}
+          value={activeTabCode}
           theme={EDITOR_THEME_NAME}
           beforeMount={configureEditorTheme}
           loading={
