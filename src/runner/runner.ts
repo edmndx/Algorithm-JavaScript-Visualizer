@@ -164,7 +164,7 @@ function createExecutionFunction(
   const dynamicFunction = new Function(
     'trace',
     'console',
-    `"use strict"; return (async () => {\n${source}\n})();`,
+    `"use strict"; return (async function () {\n${source}\n})();`,
   );
 
   return (trace, console) => {

@@ -4,7 +4,7 @@
     "name": "Bubble sort",
     "category": "Array",
     "description": "Repeatedly swap adjacent values until the array is sorted.",
-    "code": "const values = [8, 3, 5, 1, 4];\n\nfor (let end = values.length - 1; end > 0; end--) {\n  let swapped = false;\n\n  for (let index = 0; index < end; index++) {\n    if (values[index] > values[index + 1]) {\n      [values[index], values[index + 1]] = [values[index + 1], values[index]];\n      swapped = true;\n    }\n  }\n\n  if (!swapped) break;\n}\n\nconsole.log(values);"
+    "code": "const values = [8, 3, 5, 1, 4];\n\nfor (let end = values.length - 1; end > 0; end--) {\n  let swapped = false;\n\n  for (let index = 0; index < end; index++) {\n    if (values[index] > values[index + 1]) {\n      [values[index], values[index + 1]] = [values[index + 1], values[index]];\n      swapped = true;\n    }\n  }\n\n  if (!swapped) break;\n}"
   },
   {
     "id": "binary-search",
