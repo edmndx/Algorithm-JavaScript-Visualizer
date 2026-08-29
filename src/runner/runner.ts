@@ -8,6 +8,7 @@ export const RUNNER_LIMITS = {
 } as const;
 
 export type ConsoleEntry = {
+  readonly sequence: number;
   readonly level: 'log' | 'warn' | 'error';
   readonly text: string;
 };
@@ -57,6 +58,16 @@ export type RunnerResult =
       readonly error: RunnerError;
     };
 
+export type RunnerSourceValidation =
+  | {
+      readonly ok: true;
+      readonly source: string;
+    }
+  | {
+      readonly ok: false;
+      readonly result: Extract<RunnerResult, { readonly ok: false }>;
+    };
+
 type TraceApi = Omit<ReturnType<typeof createTracer>, 'getCommands'>;
 
 type RunnerConsole = Readonly<
@@ -69,36 +80,69 @@ type ConsoleCapture = {
   getError(): Extract<RunnerError, { readonly code: 'OUTPUT_LIMIT' }> | null;
 };
 
+export type RunnerOptions = {
+  readonly tracing: boolean;
+};
+
 const textEncoder = new TextEncoder();
 
-export async function runCode(source: unknown): Promise<RunnerResult> {
+export async function runCode(
+  source: unknown,
+  options: RunnerOptions,
+): Promise<RunnerResult> {
+  const validation = validateRunnerSource(source);
+  if (!validation.ok) return validation.result;
+
+  return runValidatedCode(validation.source, options);
+}
+
+export function validateRunnerSource(source: unknown): RunnerSourceValidation {
+  if (typeof source !== 'string') {
+    return {
+      ok: false,
+      result: failure([], [], {
+        code: 'INVALID_ARGUMENT',
+        message: 'Runner source code must be a string.',
+      }),
+    };
+  }
+
+  if (textEncoder.encode(source).byteLength > RUNNER_LIMITS.sourceBytes) {
+    return {
+      ok: false,
+      result: failure([], [], {
+        code: 'SOURCE_LIMIT',
+        limit: RUNNER_LIMITS.sourceBytes,
+        message: `Runner source code exceeds the ${RUNNER_LIMITS.sourceBytes}-byte limit.`,
+      }),
+    };
+  }
+
+  return { ok: true, source };
+}
+
+export async function runValidatedCode(
+  source: string,
+  options: RunnerOptions,
+): Promise<RunnerResult> {
   try {
-    return await executeSource(source);
+    return await executeSource(source, options);
   } catch (error) {
     return failure([], [], toInternalError(error));
   }
 }
 
-async function executeSource(source: unknown): Promise<RunnerResult> {
-  if (typeof source !== 'string') {
-    return failure([], [], {
-      code: 'INVALID_ARGUMENT',
-      message: 'Runner source code must be a string.',
-    });
-  }
-
-  if (textEncoder.encode(source).byteLength > RUNNER_LIMITS.sourceBytes) {
-    return failure([], [], {
-      code: 'SOURCE_LIMIT',
-      limit: RUNNER_LIMITS.sourceBytes,
-      message: `Runner source code exceeds the ${RUNNER_LIMITS.sourceBytes}-byte limit.`,
-    });
-  }
-
-  let execute: (trace: TraceApi, console: RunnerConsole) => Promise<unknown>;
+async function executeSource(
+  source: string,
+  options: RunnerOptions,
+): Promise<RunnerResult> {
+  let execute: (
+    trace: TraceApi | null,
+    console: RunnerConsole,
+  ) => Promise<unknown>;
 
   try {
-    execute = createExecutionFunction(source);
+    execute = createExecutionFunction(source, options.tracing);
   } catch (error) {
     return failure(
       [],
@@ -109,7 +153,8 @@ async function executeSource(source: unknown): Promise<RunnerResult> {
     );
   }
 
-  const { getCommands, ...trace } = createTracer();
+  const tracer = options.tracing ? createTracer() : null;
+  const trace = tracer === null ? null : withoutGetCommands(tracer);
   const capture = createConsoleCapture();
   let executionError: RunnerError | null = null;
 
@@ -130,16 +175,24 @@ async function executeSource(source: unknown): Promise<RunnerResult> {
 
   if (runError !== null) {
     return failure(
-      readPartialCommands(getCommands),
+      tracer === null ? [] : readPartialCommands(tracer.getCommands),
       capture.snapshot(),
       runError,
     );
   }
 
+  if (tracer === null) {
+    return {
+      ok: true,
+      commands: [],
+      stdout: capture.snapshot(),
+    };
+  }
+
   try {
     return {
       ok: true,
-      commands: getCommands(),
+      commands: tracer.getCommands(),
       stdout: capture.snapshot(),
     };
   } catch (error) {
@@ -159,18 +212,31 @@ async function executeSource(source: unknown): Promise<RunnerResult> {
 
 function createExecutionFunction(
   source: string,
-): (trace: TraceApi, console: RunnerConsole) => Promise<unknown> {
+  tracing: boolean,
+): (trace: TraceApi | null, console: RunnerConsole) => Promise<unknown> {
   // Keep dynamic execution's untyped boundary isolated here.
-  const dynamicFunction = new Function(
-    'trace',
-    'console',
-    `"use strict"; return (async function () {\n${source}\n})();`,
-  );
+  const dynamicFunction = tracing
+    ? new Function(
+        'trace',
+        'console',
+        `"use strict"; return (async function () {\n${source}\n})();`,
+      )
+    : new Function(
+        'console',
+        `"use strict"; return (async function () {\n${source}\n})();`,
+      );
 
   return (trace, console) => {
-    const result: unknown = dynamicFunction(trace, console);
+    const result: unknown = tracing
+      ? dynamicFunction(trace, console)
+      : dynamicFunction(console);
     return Promise.resolve(result);
   };
+}
+
+function withoutGetCommands(tracer: ReturnType<typeof createTracer>): TraceApi {
+  const { getCommands: _getCommands, ...trace } = tracer;
+  return trace;
 }
 
 function createConsoleCapture(): ConsoleCapture {
@@ -203,7 +269,7 @@ function createConsoleCapture(): ConsoleCapture {
       return;
     }
 
-    entries.push({ level, text });
+    entries.push({ sequence: entries.length, level, text });
     byteLength = nextByteLength;
   }
 
@@ -283,7 +349,7 @@ function failure(
   commands: readonly TraceCommand[],
   stdout: readonly ConsoleEntry[],
   error: RunnerError,
-): RunnerResult {
+): Extract<RunnerResult, { readonly ok: false }> {
   return {
     ok: false,
     commands,
