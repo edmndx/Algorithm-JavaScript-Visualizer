@@ -1,7 +1,6 @@
 import { expose } from 'comlink';
 
-import { instrumentJavaScript } from '../instrumentation/instrumentJavaScript';
-import { RUNNER_LIMITS, runCode } from '../runner/runner';
+import { runSandbox } from './runSandbox';
 import type { SandboxHealth, SandboxWorkerApi } from './sandboxTypes';
 
 const health: SandboxHealth = {
@@ -9,16 +8,9 @@ const health: SandboxHealth = {
   instanceId: crypto.randomUUID(),
 };
 
-const textEncoder = new TextEncoder();
-
 const api: SandboxWorkerApi = {
   ping: () => health,
-  run: (source) =>
-    runCode(
-      textEncoder.encode(source).byteLength > RUNNER_LIMITS.sourceBytes
-        ? source
-        : instrumentJavaScript(source),
-    ),
+  run: runSandbox,
 };
 
 expose(api);

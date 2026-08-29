@@ -1,114 +1,47 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import '../assets/MainPage.css';
-import {
-  createCodeEditorValue,
-  loadStarterCode,
-  updateCodeEditorValue,
-} from '../features/codeEditor';
 import {
   algorithmCatalog,
   type AlgorithmCatalogEntry,
 } from '../features/loadData';
+import { useAlgorithmExecution } from '../features/useAlgorithmExecution';
 import { usePlayback } from '../playback';
-import { SandboxClient } from '../sandbox';
 import AppHeader from './components/AppHeader';
 import CatalogSidebar from './components/CatalogSidebar';
-import CodeEditorPanel from './components/CodeEditorPanel';
+import { CodeEditorPanel } from './components/CodeEditorPanel';
 import ConsolePanel from './components/ConsolePanel';
+import { useEditorTabs } from './components/useEditorTabs';
 import VisualizationPanel from './components/VisualizationPanel';
 
 const DEFAULT_ALGORITHM = algorithmCatalog[0] ?? null;
 
 export default function MainPage() {
-  const [code, setCode] = useState(DEFAULT_ALGORITHM?.code ?? '');
-  const [activeSource, setActiveSource] = useState(() =>
-    createCodeEditorValue(code),
-  );
-  const activeSourceRef = useRef(activeSource);
   const [selectedAlgorithm, setSelectedAlgorithm] =
     useState<AlgorithmCatalogEntry | null>(DEFAULT_ALGORITHM);
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
-  const [hasEditorErrors, setHasEditorErrors] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
-  const sandboxClient = useRef<SandboxClient | null>(null);
-  const runSequence = useRef(0);
   const playback = usePlayback();
-
-  const updateActiveSource = useCallback((nextCode: string) => {
-    const nextSource = updateCodeEditorValue(activeSourceRef.current, nextCode);
-
-    if (nextSource === activeSourceRef.current) return;
-
-    activeSourceRef.current = nextSource;
-    setActiveSource(nextSource);
-  }, []);
-
-  useEffect(() => {
-    let client: SandboxClient;
-
-    try {
-      client = new SandboxClient();
-    } catch {
-      return;
-    }
-
-    sandboxClient.current = client;
-
-    return () => {
-      runSequence.current += 1;
-      sandboxClient.current = null;
-      client.dispose();
-    };
-  }, []);
+  const editorTabs = useEditorTabs({
+    fileName: `${selectedAlgorithm?.id ?? 'starter-code'}.js`,
+    initialCode: DEFAULT_ALGORITHM?.code ?? '',
+    initialStructure: null,
+  });
+  const execution = useAlgorithmExecution(
+    editorTabs.isCurrentSource,
+    playback.load,
+    playback.play,
+  );
 
   function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
-    const starterCode = loadStarterCode(algorithm.id) ?? '';
-
     setSelectedAlgorithm(algorithm);
-    setCode(starterCode);
-    if (!isEditorOpen) updateActiveSource(starterCode);
-    setHasEditorErrors(false);
+    editorTabs.replacePrimarySource(algorithm.code, null);
   }
 
-  async function runAlgorithm() {
-    const client = sandboxClient.current;
-    if (!selectedAlgorithm || isRunning) return;
-
-    if (client === null) return;
-
-    const runId = ++runSequence.current;
-    const runSource = activeSourceRef.current;
-
-    function isCurrentRun() {
-      return (
-        runId === runSequence.current &&
-        runSource.revision === activeSourceRef.current.revision
-      );
-    }
-
-    setIsRunning(true);
-
-    try {
-      const result = await client.run(runSource.code);
-      if (!isCurrentRun()) return;
-
-      if (result.ok) {
-        playback.load(result.commands);
-      }
-    } catch {
-      // Execution failures intentionally leave the console and playback intact.
-    } finally {
-      if (runId === runSequence.current) setIsRunning(false);
-    }
+  function runAlgorithm() {
+    if (selectedAlgorithm === null) return;
+    void execution.run(editorTabs.activeSource);
   }
-
-  const fileStatus = !selectedAlgorithm
-    ? 'empty'
-    : hasEditorErrors
-      ? 'error'
-      : 'loaded';
 
   const pageClassName = [
     'main-page',
@@ -122,8 +55,8 @@ export default function MainPage() {
     <div className={pageClassName}>
       <AppHeader
         algorithm={selectedAlgorithm}
-        fileStatus={fileStatus}
-        isRunning={isRunning}
+        fileStatus={selectedAlgorithm === null ? 'empty' : 'loaded'}
+        isRunning={execution.isRunning}
         onRun={runAlgorithm}
       />
 
@@ -186,13 +119,7 @@ export default function MainPage() {
 
           {isEditorOpen ? (
             <div className="main-page-editor-workbench" id="editor-workbench">
-              <CodeEditorPanel
-                code={code}
-                fileName={`${selectedAlgorithm?.id ?? 'starter-code'}.js`}
-                onChange={setCode}
-                onActiveSourceChange={updateActiveSource}
-                onValidationChange={setHasEditorErrors}
-              />
+              <CodeEditorPanel editorTabs={editorTabs} />
               <ConsolePanel />
             </div>
           ) : null}
