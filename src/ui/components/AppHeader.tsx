@@ -24,7 +24,10 @@ export function AppHeader({
     if (!isFileMenuOpen) return;
 
     function closeOnOutsidePointer(event: PointerEvent) {
-      if (!fileMenuRef.current?.contains(event.target as Node)) {
+      if (
+        !(event.target instanceof Node) ||
+        !fileMenuRef.current?.contains(event.target)
+      ) {
         setIsFileMenuOpen(false);
       }
     }
