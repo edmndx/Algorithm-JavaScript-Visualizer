@@ -5,6 +5,9 @@ import type { PlaybackController } from '../playback';
 import type { ConsoleEntry } from '../runner/runner';
 import { SandboxClient } from '../sandbox';
 
+const UNSUPPORTED_VISUALIZATION_MESSAGE =
+  'Visualization unavailable: this code pattern is not supported by automatic instrumentation.';
+
 interface AlgorithmExecution {
   readonly consoleEntries: readonly ConsoleEntry[];
   readonly isRunning: boolean;
@@ -61,19 +64,43 @@ export function useAlgorithmExecution(
     setIsRunning(true);
 
     try {
-      const sandboxResult = await client.run(runSource.code);
+      const sandboxResult = await client.run(
+        runSource.code,
+        runSource.structure,
+      );
       if (!isLatestRun()) return;
 
-      const entries: ConsoleEntry[] = [...sandboxResult.stdout];
+      const entries: ConsoleEntry[] = [...sandboxResult.result.stdout];
 
-      if (!sandboxResult.ok) {
-        appendConsoleEntry(entries, 'error', sandboxResult.error.message);
-      } else if (sandboxResult.commands.length > 0) {
-        const timelineResult = loadPlayback(sandboxResult.commands);
-        if (!timelineResult.ok) {
-          appendConsoleEntry(entries, 'error', timelineResult.error.message);
-        } else {
-          playPlayback();
+      switch (sandboxResult.status) {
+        case 'execution-failure':
+          appendConsoleEntry(
+            entries,
+            'error',
+            sandboxResult.result.error.message,
+          );
+          break;
+        case 'unsupported':
+          appendConsoleEntry(
+            entries,
+            'warn',
+            UNSUPPORTED_VISUALIZATION_MESSAGE,
+          );
+          break;
+        case 'instrumented': {
+          const timelineResult = loadPlayback(sandboxResult.result.commands);
+          if (!timelineResult.ok) {
+            appendConsoleEntry(entries, 'error', timelineResult.error.message);
+          } else {
+            playPlayback();
+          }
+          break;
+        }
+        case 'untraced':
+          break;
+        default: {
+          const unexpectedResult: never = sandboxResult;
+          return unexpectedResult;
         }
       }
 

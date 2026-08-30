@@ -7,14 +7,17 @@ import { instrumentMatrix } from './instrumentMatrix';
 import { instrumentQueue } from './instrumentQueue';
 import { instrumentStack } from './instrumentStack';
 import { instrumentTree } from './instrumentTree';
-import type { InstrumentableStructure } from './instrumentationTypes';
+import type {
+  InstrumentableStructure,
+  InstrumentationResult,
+} from './instrumentationTypes';
 
 export function instrumentJavaScript(
   source: string,
-  structure: InstrumentableStructure = 'array',
-): string {
+  structure: InstrumentableStructure,
+): InstrumentationResult {
   const program = parseJavaScript(source);
-  if (program === null) return source;
+  if (program === null) return { status: 'unsupported', source };
 
   let instrumented: string | null;
   switch (structure) {
@@ -44,5 +47,7 @@ export function instrumentJavaScript(
       break;
   }
 
-  return instrumented ?? source;
+  return instrumented === null
+    ? { status: 'unsupported', source }
+    : { status: 'instrumented', source: instrumented };
 }

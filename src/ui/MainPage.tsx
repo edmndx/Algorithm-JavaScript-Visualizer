@@ -25,7 +25,7 @@ export default function MainPage() {
   const editorTabs = useEditorTabs({
     fileName: `${selectedAlgorithm?.id ?? 'starter-code'}.js`,
     initialCode: DEFAULT_ALGORITHM?.code ?? '',
-    initialStructure: null,
+    initialStructure: DEFAULT_ALGORITHM?.structure ?? null,
   });
   const execution = useAlgorithmExecution(
     editorTabs.isCurrentSource,
@@ -35,7 +35,7 @@ export default function MainPage() {
 
   function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
     setSelectedAlgorithm(algorithm);
-    editorTabs.replacePrimarySource(algorithm.code, null);
+    editorTabs.replacePrimarySource(algorithm.code, algorithm.structure);
   }
 
   function runAlgorithm() {

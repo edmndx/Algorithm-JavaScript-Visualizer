@@ -115,7 +115,7 @@ export function useEditorTabs({
 
   function replacePrimarySource(
     code: string,
-    structure: InstrumentableStructure | null,
+    structure: InstrumentableStructure,
   ) {
     if (code === primarySource.code && structure === primarySource.structure) {
       return;
