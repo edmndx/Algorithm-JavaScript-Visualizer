@@ -53,16 +53,44 @@ type ListCandidate = {
   readonly assignments: readonly NextAssignment[];
 };
 
+type ListDeclaration = {
+  readonly declaration: VariableDeclaration;
+  readonly nodes: readonly StaticListNode[];
+};
+
+type ListVisit = {
+  readonly statement: ExpressionStatement;
+  readonly target: Identifier;
+  readonly line: number;
+};
+
+type StaticNextAssignment = {
+  readonly assignment: AssignmentExpression;
+  readonly statement: ExpressionStatement;
+  readonly nodeId: string;
+  readonly nextId: string | null;
+  readonly line: number;
+};
+
+type ReadOnlyListCandidate = ListDeclaration & {
+  readonly assignments: readonly StaticNextAssignment[];
+  readonly visits: readonly ListVisit[];
+};
+
 export function instrumentLinkedList(
   source: string,
   program: Program,
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const candidates = findListDeclarations(program)
+  const declarations = findListDeclarations(program);
+  const candidates = declarations
     .map(({ declaration, nodes }) => analyzeList(program, declaration, nodes))
     .filter((candidate): candidate is ListCandidate => candidate !== null);
 
+  if (candidates.length === 0) {
+    return instrumentReadOnlyList(source, program, declarations);
+  }
   if (candidates.length !== 1) return null;
 
   const [candidate] = candidates;
@@ -108,10 +136,231 @@ export function instrumentLinkedList(
   return applySourceEdits(source, edits);
 }
 
-function findListDeclarations(program: Program): Array<{
-  readonly declaration: VariableDeclaration;
-  readonly nodes: readonly StaticListNode[];
-}> {
+function instrumentReadOnlyList(
+  source: string,
+  program: Program,
+  declarations: readonly ListDeclaration[],
+): string | null {
+  const listDeclaration = declarations[0];
+  if (declarations.length !== 1 || listDeclaration === undefined) return null;
+
+  const { declaration, nodes } = listDeclaration;
+  const declarator = declaration.declarations[0];
+  const declarationLine = sourceLine(declaration);
+  if (declarator?.id.type !== 'Identifier' || declarationLine === null) {
+    return null;
+  }
+  const root = declarator.id.name;
+  const assignments = findStaticNextAssignments(program, nodes);
+
+  const candidates = program.body
+    .filter(
+      (statement): statement is FunctionDeclaration =>
+        statement.type === 'FunctionDeclaration' && statement.id !== null,
+    )
+    .flatMap((traversal): readonly ReadOnlyListCandidate[] => {
+      if (
+        traversal.params.length !== 1 ||
+        traversal.params[0]?.type !== 'Identifier'
+      ) {
+        return [];
+      }
+
+      const initialCall = findInitialCall(program, traversal, root);
+      if (
+        initialCall === null ||
+        hasUnsafeListUsage(
+          program,
+          declaration,
+          traversal,
+          initialCall.call,
+          initialCall.result,
+          root,
+          assignments,
+        )
+      ) {
+        return [];
+      }
+
+      const pointerNames = traversalPointerNames(traversal);
+      const visits: ListVisit[] = [];
+      walkAst(traversal.body, (node, parent, _grandparent, unsupported) => {
+        if (unsupported) return;
+        const visit = matchListVisit(node, parent, pointerNames);
+        if (visit !== null) visits.push(visit);
+      });
+
+      return visits.length === 0
+        ? []
+        : [{ assignments, declaration, nodes, visits }];
+    });
+  const candidate = candidates[0];
+  if (candidates.length !== 1 || candidate === undefined) return null;
+
+  const allocate = createIdentifierAllocator(program, '__traceList');
+  const nodeIds = allocate();
+  const lastNode = candidate.nodes.at(-1);
+  if (lastNode === undefined) return null;
+
+  const weakMapEntries = candidate.nodes
+    .map(({ access, id }) => `[${access}, ${JSON.stringify(id)}]`)
+    .join(', ');
+  const traceNodes = candidate.nodes
+    .map(
+      ({ id, value, nextId }) =>
+        `{ id: ${JSON.stringify(id)}, value: ${JSON.stringify(value)}, nextId: ${JSON.stringify(nextId)} }`,
+    )
+    .join(', ');
+  const edits: SourceEdit[] = [
+    {
+      start: candidate.declaration.end,
+      end: candidate.declaration.end,
+      text:
+        `;\ntrace.initialize({ structure: 'linked-list', source: { line: ${declarationLine} } });\n` +
+        `const ${nodeIds} = new WeakMap([${weakMapEntries}]);\n` +
+        `trace.createLinkedList({ kind: 'singly', headId: ${JSON.stringify(candidate.nodes[0]?.id)}, tailId: ${JSON.stringify(lastNode.id)}, nodes: [${traceNodes}], source: { line: ${declarationLine} } });\n`,
+    },
+    ...candidate.assignments.map(({ statement, nodeId, nextId, line }) => ({
+      start: statement.end,
+      end: statement.end,
+      text: `;\ntrace.setNext({ nodeId: ${JSON.stringify(nodeId)}, nextId: ${JSON.stringify(nextId)}, source: { line: ${line} } });`,
+    })),
+    ...candidate.visits.map(({ statement, target, line }) => ({
+      start: statement.end,
+      end: statement.end,
+      text: `;\nif (${target.name} !== null) trace.visit({ nodeId: ${nodeIds}.get(${target.name}), source: { line: ${line} } });`,
+    })),
+  ];
+
+  return applySourceEdits(source, edits);
+}
+
+function findStaticNextAssignments(
+  program: Program,
+  nodes: readonly StaticListNode[],
+): readonly StaticNextAssignment[] {
+  const nodeByAccess = new Map(nodes.map((node) => [node.access, node]));
+  const assignments: StaticNextAssignment[] = [];
+
+  walkAst(program, (node, parent, _grandparent, unsupported) => {
+    if (
+      unsupported ||
+      node.type !== 'AssignmentExpression' ||
+      node.operator !== '=' ||
+      parent?.type !== 'ExpressionStatement' ||
+      node.left.type !== 'MemberExpression' ||
+      node.left.computed ||
+      node.left.property.type !== 'Identifier' ||
+      node.left.property.name !== 'next'
+    ) {
+      return;
+    }
+
+    const target = nodeByAccess.get(staticListAccess(node.left.object) ?? '');
+    const line = sourceLine(node);
+    if (target === undefined || line === null) return;
+
+    if (node.right.type === 'Literal' && node.right.value === null) {
+      assignments.push({
+        assignment: node,
+        statement: parent,
+        nodeId: target.id,
+        nextId: null,
+        line,
+      });
+      return;
+    }
+
+    const next = nodeByAccess.get(staticListAccess(node.right) ?? '');
+    if (next !== undefined) {
+      assignments.push({
+        assignment: node,
+        statement: parent,
+        nodeId: target.id,
+        nextId: next.id,
+        line,
+      });
+    }
+  });
+
+  return assignments;
+}
+
+function staticListAccess(node: AnyNode): string | null {
+  if (node.type === 'Identifier') return node.name;
+  if (
+    node.type !== 'MemberExpression' ||
+    node.computed ||
+    node.optional ||
+    node.property.type !== 'Identifier'
+  ) {
+    return null;
+  }
+
+  const object = staticListAccess(node.object);
+  return object === null ? null : `${object}.${node.property.name}`;
+}
+
+function matchListVisit(
+  node: AnyNode,
+  parent: AnyNode | null,
+  pointerNames: ReadonlySet<string>,
+): ListVisit | null {
+  if (
+    node.type !== 'AssignmentExpression' ||
+    node.operator !== '=' ||
+    node.left.type !== 'Identifier' ||
+    !pointerNames.has(node.left.name) ||
+    parent?.type !== 'ExpressionStatement' ||
+    nextChainRoot(node.right)?.name !== node.left.name
+  ) {
+    return null;
+  }
+
+  const line = sourceLine(node);
+  return line === null ? null : { statement: parent, target: node.left, line };
+}
+
+function traversalPointerNames(
+  traversal: FunctionDeclaration,
+): ReadonlySet<string> {
+  const parameter = traversal.params[0];
+  if (parameter?.type !== 'Identifier') return new Set();
+
+  const names = new Set([parameter.name]);
+  for (const statement of traversal.body.body) {
+    if (statement.type !== 'VariableDeclaration') continue;
+
+    for (const declarator of statement.declarations) {
+      if (
+        declarator.id.type === 'Identifier' &&
+        declarator.init?.type === 'Identifier' &&
+        names.has(declarator.init.name)
+      ) {
+        names.add(declarator.id.name);
+      }
+    }
+  }
+
+  return names;
+}
+
+function nextChainRoot(node: AnyNode): Identifier | null {
+  if (
+    node.type !== 'MemberExpression' ||
+    node.computed ||
+    node.optional ||
+    node.property.type !== 'Identifier' ||
+    node.property.name !== 'next'
+  ) {
+    return null;
+  }
+
+  if (node.object.type === 'Identifier') return node.object;
+  return nextChainRoot(node.object);
+}
+
+function findListDeclarations(program: Program): ListDeclaration[] {
   return program.body.flatMap((statement) => {
     if (
       statement.type !== 'VariableDeclaration' ||
@@ -441,8 +690,12 @@ function hasUnsafeListUsage(
   initialCall: CallExpression,
   result: InitialCall['result'],
   root: string,
+  supportedAssignments: readonly StaticNextAssignment[] = [],
 ): boolean {
   const initialRoot = initialCall.arguments[0];
+  const supportedWrites = new Set<AnyNode>(
+    supportedAssignments.map(({ assignment }) => assignment),
+  );
   let unsafe = false;
 
   walkAst(program, (node, parent) => {
@@ -451,9 +704,15 @@ function hasUnsafeListUsage(
     if (
       (isIdentifierReference(node, parent, root) &&
         node !== declaration.declarations[0]?.id &&
-        node !== initialRoot) ||
+        node !== initialRoot &&
+        !supportedAssignments.some(
+          ({ assignment }) =>
+            node.start >= assignment.start && node.end <= assignment.end,
+        )) ||
       isUnsafeResultUsage(node, parent, result) ||
-      (!insideTraversal && isRootWrite(node, root))
+      (!insideTraversal &&
+        isRootWrite(node, root) &&
+        !supportedWrites.has(node))
     ) {
       unsafe = true;
     }
