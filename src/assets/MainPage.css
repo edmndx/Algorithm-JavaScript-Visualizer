@@ -398,6 +398,17 @@
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent-red) 28%, transparent);
 }
 
+.app-header-run--success,
+.app-header-run--success:hover:not(:disabled),
+.app-header-run--success:focus-visible {
+  --run-success: oklch(0.78 0.14 145);
+
+  border-color: color-mix(in oklab, var(--run-success) 62%, var(--border));
+  background: color-mix(in oklab, var(--run-success) 18%, transparent);
+  color: oklch(0.9 0.1 145);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--run-success) 22%, transparent);
+}
+
 .app-header-run:active:not(:disabled) {
   transform: translateY(1px);
 }
@@ -977,6 +988,24 @@
   font-size: 0.75rem;
   scrollbar-color: var(--border-strong) transparent;
   scrollbar-width: thin;
+}
+
+.console-panel-entry {
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.console-panel-entry + .console-panel-entry {
+  margin-top: 0.5rem;
+}
+
+.console-panel-entry--warn {
+  color: oklch(0.82 0.12 85);
+}
+
+.console-panel-entry--error {
+  color: color-mix(in oklab, var(--accent-red) 65%, white);
 }
 
 /* Code editor */

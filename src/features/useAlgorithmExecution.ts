@@ -2,15 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { RunnableSource } from './codeEditor';
 import type { PlaybackController } from '../playback';
+import { TRACE_PROTOCOL_VERSION, type TraceCommand } from '../protocol';
 import type { ConsoleEntry } from '../runner/runner';
 import { SandboxClient } from '../sandbox';
 
-const UNSUPPORTED_VISUALIZATION_MESSAGE =
-  'Visualization unavailable: this code pattern is not supported by automatic instrumentation.';
+const UNSUPPORTED_TRACE_MESSAGE =
+  'Semantic trace unavailable: this code pattern is not supported by automatic instrumentation.';
+const UNTRACED_SOURCE_MESSAGE =
+  'Semantic trace unavailable: this source has no instrumentable structure.';
 
 interface AlgorithmExecution {
   readonly consoleEntries: readonly ConsoleEntry[];
   readonly isRunning: boolean;
+  readonly successfulSourceRevision: number | null;
   readonly run: (source: RunnableSource) => Promise<void>;
 }
 
@@ -23,6 +27,9 @@ export function useAlgorithmExecution(
   const isRunActive = useRef(false);
   const runSequence = useRef(0);
   const [isRunning, setIsRunning] = useState(false);
+  const [successfulSourceRevision, setSuccessfulSourceRevision] = useState<
+    number | null
+  >(null);
   const [consoleEntries, setConsoleEntries] = useState<readonly ConsoleEntry[]>(
     [],
   );
@@ -39,6 +46,7 @@ export function useAlgorithmExecution(
   async function run(runSource: RunnableSource) {
     if (isRunActive.current) return;
     isRunActive.current = true;
+    setSuccessfulSourceRevision(null);
 
     let client = sandboxClient.current;
 
@@ -81,22 +89,29 @@ export function useAlgorithmExecution(
           );
           break;
         case 'unsupported':
-          appendConsoleEntry(
-            entries,
-            'warn',
-            UNSUPPORTED_VISUALIZATION_MESSAGE,
-          );
+          appendConsoleEntry(entries, 'error', UNSUPPORTED_TRACE_MESSAGE);
           break;
         case 'instrumented': {
           const timelineResult = loadPlayback(sandboxResult.result.commands);
           if (!timelineResult.ok) {
-            appendConsoleEntry(entries, 'error', timelineResult.error.message);
+            appendConsoleEntry(
+              entries,
+              'error',
+              `Semantic trace validation failed: ${timelineResult.error.message}`,
+            );
           } else {
+            appendConsoleEntry(
+              entries,
+              'log',
+              formatSemanticTrace(sandboxResult.result.commands),
+            );
+            setSuccessfulSourceRevision(runSource.revision);
             playPlayback();
           }
           break;
         }
         case 'untraced':
+          appendConsoleEntry(entries, 'error', UNTRACED_SOURCE_MESSAGE);
           break;
         default: {
           const unexpectedResult: never = sandboxResult;
@@ -127,8 +142,13 @@ export function useAlgorithmExecution(
   return {
     consoleEntries,
     isRunning,
+    successfulSourceRevision,
     run,
   };
+}
+
+function formatSemanticTrace(commands: readonly TraceCommand[]): string {
+  return JSON.stringify({ version: TRACE_PROTOCOL_VERSION, commands }, null, 2);
 }
 
 function createConsoleEntry(

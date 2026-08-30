@@ -3,18 +3,18 @@ import { useEffect, useRef, useState } from 'react';
 import type { AlgorithmCatalogEntry } from '../../features/loadData';
 import AlgorithmTreeLogo from './AlgorithmTreeLogo';
 
-type AppHeaderProps = {
-  algorithm: AlgorithmCatalogEntry | null;
-  fileStatus: 'empty' | 'loaded' | 'error';
-  isRunning: boolean;
-  onRun: () => void;
-};
+interface AppHeaderProps {
+  readonly algorithm: AlgorithmCatalogEntry | null;
+  readonly isRunning: boolean;
+  readonly onRun: () => void;
+  readonly traceSucceeded: boolean;
+}
 
-export default function AppHeader({
+export function AppHeader({
   algorithm,
-  fileStatus,
   isRunning,
   onRun,
+  traceSucceeded,
 }: AppHeaderProps) {
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
@@ -119,11 +119,18 @@ export default function AppHeader({
           </div>
 
           <button
-            className={`app-header-run${isRunning ? ' app-header-run--loading' : ''}`}
+            className={[
+              'app-header-run',
+              isRunning && 'app-header-run--loading',
+              traceSucceeded && 'app-header-run--success',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             type="button"
             aria-busy={isRunning}
-            disabled={isRunning || fileStatus === 'empty'}
+            disabled={isRunning || algorithm === null}
             onClick={onRun}
+            title={traceSucceeded ? 'Semantic trace succeeded' : undefined}
           >
             <Play className="app-header-run-icon" aria-hidden="true" />
             <span>Run</span>

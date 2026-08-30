@@ -7,16 +7,16 @@ import {
 } from '../features/loadData';
 import { useAlgorithmExecution } from '../features/useAlgorithmExecution';
 import { usePlayback } from '../playback';
-import AppHeader from './components/AppHeader';
+import { AppHeader } from './components/AppHeader';
 import CatalogSidebar from './components/CatalogSidebar';
 import { CodeEditorPanel } from './components/CodeEditorPanel';
-import ConsolePanel from './components/ConsolePanel';
+import { ConsolePanel } from './components/ConsolePanel';
 import { useEditorTabs } from './components/useEditorTabs';
 import VisualizationPanel from './components/VisualizationPanel';
 
 const DEFAULT_ALGORITHM = algorithmCatalog[0] ?? null;
 
-export default function MainPage() {
+export function MainPage() {
   const [selectedAlgorithm, setSelectedAlgorithm] =
     useState<AlgorithmCatalogEntry | null>(DEFAULT_ALGORITHM);
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
@@ -55,9 +55,12 @@ export default function MainPage() {
     <div className={pageClassName}>
       <AppHeader
         algorithm={selectedAlgorithm}
-        fileStatus={selectedAlgorithm === null ? 'empty' : 'loaded'}
         isRunning={execution.isRunning}
         onRun={runAlgorithm}
+        traceSucceeded={
+          execution.successfulSourceRevision ===
+          editorTabs.activeSource.revision
+        }
       />
 
       <div className="main-page-content">
@@ -120,7 +123,7 @@ export default function MainPage() {
           {isEditorOpen ? (
             <div className="main-page-editor-workbench" id="editor-workbench">
               <CodeEditorPanel editorTabs={editorTabs} />
-              <ConsolePanel />
+              <ConsolePanel entries={execution.consoleEntries} />
             </div>
           ) : null}
         </main>
