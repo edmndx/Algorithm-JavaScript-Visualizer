@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { instrumentableStructureSchema } from '../../instrumentation/instrumentationTypes';
+
 export const algorithmCategorySchema = z
   .string()
   .trim()
@@ -19,6 +21,7 @@ export const algorithmCatalogEntrySchema = z.strictObject({
   id: algorithmIdSchema,
   name: z.string().trim().min(1, 'Algorithm name is required.'),
   category: algorithmCategorySchema,
+  structure: instrumentableStructureSchema,
   description: z.string().trim().min(1, 'Algorithm description is required.'),
   code: z.string().trim().min(1, 'Starter code is required.'),
 });
