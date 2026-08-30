@@ -214,6 +214,31 @@ export function isDirectRootMethodCall(
   );
 }
 
+export function isDirectConsoleArgument(
+  node: AnyNode,
+  parent: AnyNode | null,
+): boolean {
+  if (
+    parent?.type !== 'CallExpression' ||
+    parent.optional ||
+    !parent.arguments.some((argument) => argument === node) ||
+    parent.callee.type !== 'MemberExpression' ||
+    parent.callee.computed ||
+    parent.callee.optional ||
+    parent.callee.object.type !== 'Identifier' ||
+    parent.callee.object.name !== 'console' ||
+    parent.callee.property.type !== 'Identifier'
+  ) {
+    return false;
+  }
+
+  return (
+    parent.callee.property.name === 'log' ||
+    parent.callee.property.name === 'warn' ||
+    parent.callee.property.name === 'error'
+  );
+}
+
 export function directInstrumentationScopes(
   program: Program,
 ): readonly DirectInstrumentationScope[] {

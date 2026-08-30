@@ -13,6 +13,7 @@ import {
 
 import {
   hasUnsafeInstrumentationSyntax,
+  isDirectConsoleArgument,
   isFiniteNumericLiteral,
   isIdentifierReference,
   isProgramOrBlockStatement,
@@ -53,7 +54,15 @@ type ArraySetMatch = {
   readonly line: number;
 };
 
-type ArrayOperation = ArraySwapMatch | ArrayComparisonMatch | ArraySetMatch;
+type ArrayMarkMatch = {
+  readonly kind: 'mark';
+  readonly statement: IfStatement;
+  readonly index: Expression;
+  readonly line: number;
+};
+
+type ArrayOperation =
+  ArraySwapMatch | ArrayComparisonMatch | ArraySetMatch | ArrayMarkMatch;
 
 const COMPARISON_OPERATORS = new Set(['<', '<=', '>', '>=', '===', '!==']);
 const ARITHMETIC_OPERATORS = new Set(['+', '-', '*', '/', '%', '**']);
@@ -96,7 +105,13 @@ export function instrumentArray(
     }
 
     const comparison = matchArrayComparison(node, parent, trackedRoot);
-    if (comparison !== null) operations.push(comparison);
+    if (comparison !== null) {
+      operations.push(comparison);
+      return;
+    }
+
+    const mark = matchArrayMark(node, parent, trackedRoot);
+    if (mark !== null) operations.push(mark);
 
     const arraySet = matchArraySet(node, parent, grandparent, trackedRoot);
     if (arraySet !== null) operations.push(arraySet);
@@ -129,6 +144,47 @@ export function instrumentArray(
   ];
 
   return applySourceEdits(source, edits);
+}
+
+function matchArrayMark(
+  node: AnyNode,
+  parent: AnyNode | null,
+  trackedRoot: string,
+): ArrayMarkMatch | null {
+  if (
+    node.type !== 'IfStatement' ||
+    !isProgramOrBlockStatement(parent) ||
+    node.test.type !== 'BinaryExpression' ||
+    !COMPARISON_OPERATORS.has(node.test.operator)
+  ) {
+    return null;
+  }
+
+  const leftValue =
+    node.test.left.type === 'PrivateIdentifier' ? null : node.test.left;
+  const left = isDirectComputedMember(leftValue) ? leftValue : null;
+  const right = isDirectComputedMember(node.test.right)
+    ? node.test.right
+    : null;
+  const member =
+    left?.object.name === trackedRoot && isSupportedProbeValue(node.test.right)
+      ? left
+      : right?.object.name === trackedRoot &&
+          leftValue !== null &&
+          isSupportedProbeValue(leftValue)
+        ? right
+        : null;
+  const line = sourceLine(node.test);
+
+  return member === null ||
+    line === null ||
+    !isSupportedIndexExpression(member.property)
+    ? null
+    : { kind: 'mark', statement: node, index: member.property, line };
+}
+
+function isSupportedProbeValue(expression: Expression): boolean {
+  return expression.type === 'Identifier' || isFiniteNumericLiteral(expression);
 }
 
 function matchArraySwap(
@@ -318,7 +374,9 @@ function hasUnsafeTrackedArrayUsage(
 ): boolean {
   const supportedMutationNodes = new Set<AnyNode>(
     operations.flatMap((operation) =>
-      operation.kind === 'compare' ? [] : [operation.mutation],
+      operation.kind === 'swap' || operation.kind === 'set'
+        ? [operation.mutation]
+        : [],
     ),
   );
   let hasUnsafeUsage = false;
@@ -344,6 +402,7 @@ function isSafeTrackedRootReference(
 ): boolean {
   return (
     node === declaration.declarations[0]?.id ||
+    isDirectConsoleArgument(node, parent) ||
     (parent?.type === 'MemberExpression' && parent.object === node)
   );
 }
@@ -412,6 +471,14 @@ function operationInsertion(
       start: operation.statement.start,
       end: operation.statement.start,
       text: `trace.compare({ indices: [${expressionSource(source, operation.indices[0])}, ${expressionSource(source, operation.indices[1])}], source: { line: ${operation.line} } });\n${indentation}`,
+    };
+  }
+
+  if (operation.kind === 'mark') {
+    return {
+      start: operation.statement.start,
+      end: operation.statement.start,
+      text: `trace.mark({ marker: 'probe', indices: [${expressionSource(source, operation.index)}], source: { line: ${operation.line} } });\n${indentation}`,
     };
   }
 

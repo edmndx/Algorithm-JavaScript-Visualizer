@@ -11,6 +11,7 @@ import {
 
 import {
   hasUnsafeInstrumentationSyntax,
+  isDirectConsoleArgument,
   isFiniteNumericLiteral,
   isIdentifierReference,
   isProgramOrBlockStatement,
@@ -399,6 +400,7 @@ function isSafeMatrixReference(
 ): boolean {
   return (
     node === declaration.declarations[0]?.id ||
+    isDirectConsoleArgument(node, parent) ||
     (parent?.type === 'MemberExpression' &&
       parent.object === node &&
       ((!parent.computed &&

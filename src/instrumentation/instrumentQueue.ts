@@ -14,6 +14,7 @@ import {
   createIdentifierAllocator,
   directInstrumentationScopes,
   hasUnsafeInstrumentationSyntax,
+  isDirectConsoleArgument,
   isCalledExactlyOnce,
   isDirectWriteTarget,
   isDirectRootMethodCall,
@@ -512,6 +513,7 @@ function isSafeQueueReference(
 ): boolean {
   return (
     node === declaration.declarations[0]?.id ||
+    isDirectConsoleArgument(node, parent) ||
     (parent?.type === 'MemberExpression' &&
       parent.object === node &&
       (supportedMembers.has(parent) || isLengthMember(parent)))
