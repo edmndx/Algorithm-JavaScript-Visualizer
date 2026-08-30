@@ -1,8 +1,12 @@
 import { releaseProxy, wrap, type Remote } from 'comlink';
 
-import type { RunnerResult } from '../runner/runner';
+import type { InstrumentableStructure } from '../instrumentation/instrumentationTypes';
 import { SandboxError } from './sandboxErrors';
-import type { SandboxHealth, SandboxWorkerApi } from './sandboxTypes';
+import type {
+  SandboxHealth,
+  SandboxRunResult,
+  SandboxWorkerApi,
+} from './sandboxTypes';
 
 type ActiveState = {
   readonly lifecycle: 'active';
@@ -29,8 +33,13 @@ export class SandboxClient {
     return this.callWorker((worker) => worker.ping());
   }
 
-  async run(source: string): Promise<RunnerResult> {
-    return this.callWorker<RunnerResult>((worker) => worker.run(source));
+  async run(
+    source: string,
+    structure: InstrumentableStructure | null,
+  ): Promise<SandboxRunResult> {
+    return this.callWorker<SandboxRunResult>((worker) =>
+      worker.run(source, structure),
+    );
   }
 
   restart(): void {

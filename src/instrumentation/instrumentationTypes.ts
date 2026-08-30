@@ -14,3 +14,10 @@ export const instrumentableStructureSchema = z.enum([
 export type InstrumentableStructure = z.infer<
   typeof instrumentableStructureSchema
 >;
+
+export type InstrumentationStatus = 'instrumented' | 'unsupported';
+
+export type InstrumentationResult = {
+  readonly status: InstrumentationStatus;
+  readonly source: string;
+};
