@@ -11,6 +11,8 @@ import type { TraceCommand } from '../src/protocol';
 import type {
   ArraySceneState,
   EmptySceneState,
+  HashTableSceneState,
+  LinkedListSceneState,
   MatrixSceneState,
   QueueSceneState,
   SceneState,
@@ -29,8 +31,9 @@ function createArrayScene(itemCount: number): ArraySceneState {
     title: 'Bubble Sort',
     message: null,
     values: Array.from({ length: itemCount }, (_, index) => index),
-    itemIds: Array.from({ length: itemCount }, (_, index) =>
-      `array-item-${index}`,
+    itemIds: Array.from(
+      { length: itemCount },
+      (_, index) => `array-item-${index}`,
     ),
     labels: [],
     comparedIndices: null,
@@ -128,20 +131,23 @@ test('array identities follow swapped values and survive position updates', () =
     return;
   }
 
-  assert.deepEqual(
-    'itemIds' in initial ? initial.itemIds : undefined,
-    ['array-item-0', 'array-item-1', 'array-item-2'],
-  );
+  assert.deepEqual('itemIds' in initial ? initial.itemIds : undefined, [
+    'array-item-0',
+    'array-item-1',
+    'array-item-2',
+  ]);
   assert.deepEqual(swapped.values, [1, 2, 2]);
-  assert.deepEqual(
-    'itemIds' in swapped ? swapped.itemIds : undefined,
-    ['array-item-2', 'array-item-1', 'array-item-0'],
-  );
+  assert.deepEqual('itemIds' in swapped ? swapped.itemIds : undefined, [
+    'array-item-2',
+    'array-item-1',
+    'array-item-0',
+  ]);
   assert.deepEqual(updated.values, [1, 7, 2]);
-  assert.deepEqual(
-    'itemIds' in updated ? updated.itemIds : undefined,
-    ['array-item-2', 'array-item-1', 'array-item-0'],
-  );
+  assert.deepEqual('itemIds' in updated ? updated.itemIds : undefined, [
+    'array-item-2',
+    'array-item-1',
+    'array-item-0',
+  ]);
 });
 
 test('initializing a selected structure interrupts active playback', () => {
@@ -322,35 +328,26 @@ test('matrix swaps identities and set preserves the destination identity', () =>
     return;
   }
 
-  assert.deepEqual(
-    'itemIds' in initial ? initial.itemIds : undefined,
-    [
-      ['matrix-item-0', 'matrix-item-1'],
-      ['matrix-item-2', 'matrix-item-3'],
-    ],
-  );
+  assert.deepEqual('itemIds' in initial ? initial.itemIds : undefined, [
+    ['matrix-item-0', 'matrix-item-1'],
+    ['matrix-item-2', 'matrix-item-3'],
+  ]);
   assert.deepEqual(swapped.values, [
     [4, 2],
     [3, 1],
   ]);
-  assert.deepEqual(
-    'itemIds' in swapped ? swapped.itemIds : undefined,
-    [
-      ['matrix-item-3', 'matrix-item-1'],
-      ['matrix-item-2', 'matrix-item-0'],
-    ],
-  );
+  assert.deepEqual('itemIds' in swapped ? swapped.itemIds : undefined, [
+    ['matrix-item-3', 'matrix-item-1'],
+    ['matrix-item-2', 'matrix-item-0'],
+  ]);
   assert.deepEqual(updated.values, [
     [4, 9],
     [3, 1],
   ]);
-  assert.deepEqual(
-    'itemIds' in updated ? updated.itemIds : undefined,
-    [
-      ['matrix-item-3', 'matrix-item-1'],
-      ['matrix-item-2', 'matrix-item-0'],
-    ],
-  );
+  assert.deepEqual('itemIds' in updated ? updated.itemIds : undefined, [
+    ['matrix-item-3', 'matrix-item-1'],
+    ['matrix-item-2', 'matrix-item-0'],
+  ]);
 });
 
 test('stack push and pop retain existing identities without reusing IDs', () => {
@@ -378,19 +375,21 @@ test('stack push and pop retain existing identities without reusing IDs', () => 
     return;
   }
 
-  assert.deepEqual(
-    'itemIds' in pushed ? pushed.itemIds : undefined,
-    ['stack-item-0', 'stack-item-1', 'stack-item-2'],
-  );
+  assert.deepEqual('itemIds' in pushed ? pushed.itemIds : undefined, [
+    'stack-item-0',
+    'stack-item-1',
+    'stack-item-2',
+  ]);
   assert.deepEqual(popped.values, ['A', 'B']);
-  assert.deepEqual(
-    'itemIds' in popped ? popped.itemIds : undefined,
-    ['stack-item-0', 'stack-item-1'],
-  );
-  assert.deepEqual(
-    'itemIds' in pushedAgain ? pushedAgain.itemIds : undefined,
-    ['stack-item-0', 'stack-item-1', 'stack-item-3'],
-  );
+  assert.deepEqual('itemIds' in popped ? popped.itemIds : undefined, [
+    'stack-item-0',
+    'stack-item-1',
+  ]);
+  assert.deepEqual('itemIds' in pushedAgain ? pushedAgain.itemIds : undefined, [
+    'stack-item-0',
+    'stack-item-1',
+    'stack-item-3',
+  ]);
 });
 
 test('queue dequeue removes the front identity and moves the survivors', () => {
@@ -417,19 +416,21 @@ test('queue dequeue removes the front identity and moves the survivors', () => {
     return;
   }
 
-  assert.deepEqual(
-    'itemIds' in initial ? initial.itemIds : undefined,
-    ['queue-item-0', 'queue-item-1', 'queue-item-2'],
-  );
+  assert.deepEqual('itemIds' in initial ? initial.itemIds : undefined, [
+    'queue-item-0',
+    'queue-item-1',
+    'queue-item-2',
+  ]);
   assert.deepEqual(dequeued.values, ['B', 'C']);
-  assert.deepEqual(
-    'itemIds' in dequeued ? dequeued.itemIds : undefined,
-    ['queue-item-1', 'queue-item-2'],
-  );
-  assert.deepEqual(
-    'itemIds' in enqueued ? enqueued.itemIds : undefined,
-    ['queue-item-1', 'queue-item-2', 'queue-item-3'],
-  );
+  assert.deepEqual('itemIds' in dequeued ? dequeued.itemIds : undefined, [
+    'queue-item-1',
+    'queue-item-2',
+  ]);
+  assert.deepEqual('itemIds' in enqueued ? enqueued.itemIds : undefined, [
+    'queue-item-1',
+    'queue-item-2',
+    'queue-item-3',
+  ]);
 });
 
 test('applies independent matrix, stack, and queue capacity limits', async () => {
@@ -463,5 +464,169 @@ test('applies independent matrix, stack, and queue capacity limits', async () =>
       values: Array(257).fill(0) as number[],
     }) ?? '',
     /256 items/,
+  );
+});
+
+const linkedListScene: LinkedListSceneState = {
+  structure: 'linked-list',
+  title: 'Linked list',
+  message: null,
+  kind: 'doubly',
+  headId: 'a',
+  tailId: 'b',
+  nodes: [
+    { id: 'a', value: 1, nextId: 'b', previousId: null },
+    { id: 'b', value: 2, nextId: null, previousId: 'a' },
+  ],
+  visitedNodeIds: [],
+  markers: {},
+};
+
+const hashTableScene: HashTableSceneState = {
+  structure: 'hash-table',
+  title: 'Hash table',
+  message: null,
+  bucketCount: 3,
+  strategy: 'chaining',
+  entries: [
+    { id: 'entry-a', key: 'a', value: 1, bucketIndex: 0 },
+    { id: 'entry-b', key: 'b', value: 2, bucketIndex: 0 },
+  ],
+  visitedBucketIndices: [],
+  visitedEntryIds: [],
+  markers: {},
+};
+
+for (const scene of [
+  linkedListScene,
+  hashTableScene,
+] satisfies readonly SceneState[]) {
+  test(`dispatches a ${scene.structure} scene to the shared SVG shell`, async () => {
+    const { default: SceneRenderer } =
+      await import('../src/visualization/SceneRenderer');
+    const markup = renderToStaticMarkup(
+      createElement(SceneRenderer, { scene }),
+    );
+
+    assert.match(markup, /<svg/);
+    assert.doesNotMatch(markup, /not available yet/);
+  });
+}
+
+test('applies linked-list and hash-table capacity limits without truncating', async () => {
+  const { getVisualizationCapacityMessage } =
+    await import('../src/visualization/visualizationLimits');
+
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...linkedListScene,
+      nodes: Array.from({ length: 257 }, (_, index) => ({
+        id: String(index),
+        value: index,
+        nextId: null,
+      })),
+    }) ?? '',
+    /256 nodes/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...hashTableScene,
+      bucketCount: 257,
+    }) ?? '',
+    /256 buckets/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...hashTableScene,
+      entries: Array.from({ length: 513 }, (_, index) => ({
+        id: String(index),
+        key: index,
+        value: index,
+        bucketIndex: 0,
+      })),
+    }) ?? '',
+    /512 entries/,
+  );
+});
+
+test('orders linked-list topology from the head', async () => {
+  const { getLinkedListDisplayOrder } =
+    await import('../src/visualization/renderLinkedList');
+  const order = getLinkedListDisplayOrder({
+    ...linkedListScene,
+    headId: 'b',
+    tailId: 'c',
+    nodes: [
+      { id: 'c', value: 3, nextId: null, previousId: 'a' },
+      { id: 'b', value: 2, nextId: 'a', previousId: null },
+      { id: 'a', value: 1, nextId: 'c', previousId: 'b' },
+    ],
+  });
+
+  assert.deepEqual(
+    order.map((node) => node.id),
+    ['b', 'a', 'c'],
+  );
+});
+
+test('fails closed for missing nodes and orders transient list segments', async () => {
+  const { getLinkedListDisplayOrder } =
+    await import('../src/visualization/renderLinkedList');
+
+  assert.throws(
+    () =>
+      getLinkedListDisplayOrder({
+        ...linkedListScene,
+        nodes: [{ id: 'a', value: 1, nextId: 'missing', previousId: null }],
+        headId: 'a',
+        tailId: 'a',
+      }),
+    /missing/i,
+  );
+  assert.deepEqual(
+    getLinkedListDisplayOrder({
+      ...linkedListScene,
+      nodes: [
+        { id: 'a', value: 1, nextId: null, previousId: null },
+        { id: 'detached', value: 2, nextId: null, previousId: null },
+      ],
+      headId: 'a',
+      tailId: 'a',
+    }).map((node) => node.id),
+    ['a', 'detached'],
+  );
+});
+
+test('creates collision-safe linked-list connection IDs', async () => {
+  const renderer = await import('../src/visualization/renderLinkedList');
+  assert.equal('createLinkedListConnectionId' in renderer, true);
+  if (!('createLinkedListConnectionId' in renderer)) return;
+
+  assert.notEqual(
+    renderer.createLinkedListConnectionId('next', 'a', 'b:c'),
+    renderer.createLinkedListConnectionId('next', 'a:b', 'c'),
+  );
+});
+
+test('fails closed when a hash-table entry references an invalid bucket', async () => {
+  const renderer = await import('../src/visualization/renderHashTable');
+  assert.equal('groupHashTableEntries' in renderer, true);
+  if (!('groupHashTableEntries' in renderer)) return;
+
+  assert.throws(
+    () =>
+      renderer.groupHashTableEntries({
+        ...hashTableScene,
+        bucketCount: 1,
+        entries: [
+          {
+            id: 'outside',
+            key: 'outside',
+            value: 1,
+            bucketIndex: 1,
+          },
+        ],
+      }),
+    /outside.*bucket 1.*bucketCount/i,
   );
 });

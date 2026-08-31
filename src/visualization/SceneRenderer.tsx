@@ -1,6 +1,8 @@
 import type { SceneState } from '../scene';
 import D3Scene from './D3Scene';
 import { renderArray } from './renderArray';
+import { renderHashTable } from './renderHashTable';
+import { renderLinkedList } from './renderLinkedList';
 import { renderMatrix } from './renderMatrix';
 import { renderQueue } from './renderQueue';
 import { renderStack } from './renderStack';
@@ -67,10 +69,26 @@ export default function SceneRenderer({ scene }: SceneRendererProps) {
           scene={scene}
         />
       );
+    case 'linked-list':
+      return (
+        <D3Scene
+          key={scene.structure}
+          label="Linked-list visualization"
+          render={renderLinkedList}
+          scene={scene}
+        />
+      );
+    case 'hash-table':
+      return (
+        <D3Scene
+          key={scene.structure}
+          label="Hash-table visualization"
+          render={renderHashTable}
+          scene={scene}
+        />
+      );
     case 'tree':
     case 'graph':
-    case 'linked-list':
-    case 'hash-table':
       return unavailableStructure(scene.structure);
   }
 }
