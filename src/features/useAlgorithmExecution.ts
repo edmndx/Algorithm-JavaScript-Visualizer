@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { RunnableSource } from './codeEditor';
 import type { PlaybackController } from '../playback';
-import { TRACE_PROTOCOL_VERSION, type TraceCommand } from '../protocol';
 import type { ConsoleEntry } from '../runner/runner';
 import { SandboxClient } from '../sandbox';
 
@@ -78,7 +77,7 @@ export function useAlgorithmExecution(
       );
       if (!isLatestRun()) return;
 
-      const entries: ConsoleEntry[] = [...sandboxResult.result.stdout];
+      const entries: ConsoleEntry[] = [];
 
       switch (sandboxResult.status) {
         case 'execution-failure':
@@ -100,11 +99,6 @@ export function useAlgorithmExecution(
               `Semantic trace validation failed: ${timelineResult.error.message}`,
             );
           } else {
-            appendConsoleEntry(
-              entries,
-              'log',
-              formatSemanticTrace(sandboxResult.result.commands),
-            );
             setSuccessfulSourceRevision(runSource.revision);
             playPlayback();
           }
@@ -145,10 +139,6 @@ export function useAlgorithmExecution(
     successfulSourceRevision,
     run,
   };
-}
-
-function formatSemanticTrace(commands: readonly TraceCommand[]): string {
-  return JSON.stringify({ version: TRACE_PROTOCOL_VERSION, commands }, null, 2);
 }
 
 function createConsoleEntry(
