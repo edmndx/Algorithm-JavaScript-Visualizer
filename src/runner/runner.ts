@@ -3,8 +3,6 @@ import { createTracer, TracerError } from '../tracer/tracer';
 
 export const RUNNER_LIMITS = {
   sourceBytes: 256_000,
-  stdoutEntries: 1_000,
-  stdoutBytes: 256_000,
 } as const;
 
 export type ConsoleEntry = {
@@ -36,11 +34,6 @@ export type RunnerError =
       readonly message: string;
     }
   | {
-      readonly code: 'OUTPUT_LIMIT';
-      readonly limit: 'entries' | 'bytes';
-      readonly message: string;
-    }
-  | {
       readonly code: 'INTERNAL_ERROR';
       readonly message: string;
     };
@@ -49,12 +42,10 @@ export type RunnerResult =
   | {
       readonly ok: true;
       readonly commands: readonly TraceCommand[];
-      readonly stdout: readonly ConsoleEntry[];
     }
   | {
       readonly ok: false;
       readonly commands: readonly TraceCommand[];
-      readonly stdout: readonly ConsoleEntry[];
       readonly error: RunnerError;
     };
 
@@ -70,15 +61,7 @@ export type RunnerSourceValidation =
 
 type TraceApi = Omit<ReturnType<typeof createTracer>, 'getCommands'>;
 
-type RunnerConsole = Readonly<
-  Record<ConsoleEntry['level'], (...values: readonly unknown[]) => void>
->;
-
-type ConsoleCapture = {
-  readonly console: RunnerConsole;
-  snapshot(): readonly ConsoleEntry[];
-  getError(): Extract<RunnerError, { readonly code: 'OUTPUT_LIMIT' }> | null;
-};
+type RunnerConsole = Readonly<Record<ConsoleEntry['level'], () => void>>;
 
 export type RunnerOptions = {
   readonly tracing: boolean;
@@ -100,7 +83,7 @@ export function validateRunnerSource(source: unknown): RunnerSourceValidation {
   if (typeof source !== 'string') {
     return {
       ok: false,
-      result: failure([], [], {
+      result: failure([], {
         code: 'INVALID_ARGUMENT',
         message: 'Runner source code must be a string.',
       }),
@@ -110,7 +93,7 @@ export function validateRunnerSource(source: unknown): RunnerSourceValidation {
   if (textEncoder.encode(source).byteLength > RUNNER_LIMITS.sourceBytes) {
     return {
       ok: false,
-      result: failure([], [], {
+      result: failure([], {
         code: 'SOURCE_LIMIT',
         limit: RUNNER_LIMITS.sourceBytes,
         message: `Runner source code exceeds the ${RUNNER_LIMITS.sourceBytes}-byte limit.`,
@@ -128,7 +111,7 @@ export async function runValidatedCode(
   try {
     return await executeSource(source, options);
   } catch (error) {
-    return failure([], [], toInternalError(error));
+    return failure([], toInternalError(error));
   }
 }
 
@@ -136,16 +119,12 @@ async function executeSource(
   source: string,
   options: RunnerOptions,
 ): Promise<RunnerResult> {
-  let execute: (
-    trace: TraceApi | null,
-    console: RunnerConsole,
-  ) => Promise<unknown>;
+  let execute: (trace: TraceApi | null) => Promise<unknown>;
 
   try {
     execute = createExecutionFunction(source, options.tracing);
   } catch (error) {
     return failure(
-      [],
       [],
       error instanceof SyntaxError
         ? toJavaScriptError('SYNTAX_ERROR', error)
@@ -155,11 +134,10 @@ async function executeSource(
 
   const tracer = options.tracing ? createTracer() : null;
   const trace = tracer === null ? null : withoutGetCommands(tracer);
-  const capture = createConsoleCapture();
   let executionError: RunnerError | null = null;
 
   try {
-    await execute(trace, capture.console);
+    await execute(trace);
   } catch (error) {
     executionError =
       error instanceof TracerError
@@ -171,13 +149,10 @@ async function executeSource(
         : toJavaScriptError('RUNTIME_ERROR', error);
   }
 
-  const runError = executionError ?? capture.getError();
-
-  if (runError !== null) {
+  if (executionError !== null) {
     return failure(
       tracer === null ? [] : readPartialCommands(tracer.getCommands),
-      capture.snapshot(),
-      runError,
+      executionError,
     );
   }
 
@@ -185,7 +160,6 @@ async function executeSource(
     return {
       ok: true,
       commands: [],
-      stdout: capture.snapshot(),
     };
   }
 
@@ -193,12 +167,10 @@ async function executeSource(
     return {
       ok: true,
       commands: tracer.getCommands(),
-      stdout: capture.snapshot(),
     };
   } catch (error) {
     return failure(
       [],
-      capture.snapshot(),
       error instanceof TracerError
         ? {
             code: 'TRACER_ERROR',
@@ -213,7 +185,7 @@ async function executeSource(
 function createExecutionFunction(
   source: string,
   tracing: boolean,
-): (trace: TraceApi | null, console: RunnerConsole) => Promise<unknown> {
+): (trace: TraceApi | null) => Promise<unknown> {
   // Keep dynamic execution's untyped boundary isolated here.
   const dynamicFunction = tracing
     ? new Function(
@@ -226,7 +198,8 @@ function createExecutionFunction(
         `"use strict"; return (async function () {\n${source}\n})();`,
       );
 
-  return (trace, console) => {
+  return (trace) => {
+    const console = createSilentConsole();
     const result: unknown = tracing
       ? dynamicFunction(trace, console)
       : dynamicFunction(console);
@@ -234,69 +207,17 @@ function createExecutionFunction(
   };
 }
 
-function withoutGetCommands(tracer: ReturnType<typeof createTracer>): TraceApi {
-  const { getCommands: _getCommands, ...trace } = tracer;
-  return trace;
-}
-
-function createConsoleCapture(): ConsoleCapture {
-  const entries: ConsoleEntry[] = [];
-  let byteLength = 0;
-  let error: Extract<RunnerError, { readonly code: 'OUTPUT_LIMIT' }> | null =
-    null;
-
-  function write(level: ConsoleEntry['level'], values: readonly unknown[]) {
-    if (error !== null) return;
-
-    if (entries.length >= RUNNER_LIMITS.stdoutEntries) {
-      error = {
-        code: 'OUTPUT_LIMIT',
-        limit: 'entries',
-        message: `Console output exceeds the ${RUNNER_LIMITS.stdoutEntries}-entry limit.`,
-      };
-      return;
-    }
-
-    const text = values.map(formatConsoleValue).join(' ');
-    const nextByteLength = byteLength + textEncoder.encode(text).byteLength;
-
-    if (nextByteLength > RUNNER_LIMITS.stdoutBytes) {
-      error = {
-        code: 'OUTPUT_LIMIT',
-        limit: 'bytes',
-        message: `Console output exceeds the ${RUNNER_LIMITS.stdoutBytes}-byte limit.`,
-      };
-      return;
-    }
-
-    entries.push({ sequence: entries.length, level, text });
-    byteLength = nextByteLength;
-  }
-
+function createSilentConsole(): RunnerConsole {
   return {
-    console: {
-      log: (...values) => write('log', values),
-      warn: (...values) => write('warn', values),
-      error: (...values) => write('error', values),
-    },
-    snapshot: () => [...entries],
-    getError: () => error,
+    log: () => undefined,
+    warn: () => undefined,
+    error: () => undefined,
   };
 }
 
-function formatConsoleValue(value: unknown): string {
-  try {
-    if (typeof value === 'string') return value;
-    if (value instanceof Error) return `${value.name}: ${value.message}`;
-
-    if (typeof value === 'object' && value !== null) {
-      return JSON.stringify(value) ?? String(value);
-    }
-
-    return String(value);
-  } catch {
-    return '[Unserializable value]';
-  }
+function withoutGetCommands(tracer: ReturnType<typeof createTracer>): TraceApi {
+  const { getCommands: _getCommands, ...trace } = tracer;
+  return trace;
 }
 
 function readPartialCommands(
@@ -347,13 +268,11 @@ function safelyStringify(value: unknown): string {
 
 function failure(
   commands: readonly TraceCommand[],
-  stdout: readonly ConsoleEntry[],
   error: RunnerError,
 ): Extract<RunnerResult, { readonly ok: false }> {
   return {
     ok: false,
     commands,
-    stdout,
     error,
   };
 }

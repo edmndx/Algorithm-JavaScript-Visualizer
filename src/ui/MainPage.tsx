@@ -5,6 +5,7 @@ import {
   algorithmCatalog,
   type AlgorithmCatalogEntry,
 } from '../features/loadData';
+import { createTraceOperationEntries } from '../features/traceConsole';
 import { useAlgorithmExecution } from '../features/useAlgorithmExecution';
 import { usePlayback } from '../playback';
 import { AppHeader } from './components/AppHeader';
@@ -32,6 +33,11 @@ export function MainPage() {
     playback.load,
     playback.play,
   );
+  const hasCurrentTrace =
+    execution.successfulSourceRevision === editorTabs.activeSource.revision;
+  const consoleEntries = hasCurrentTrace
+    ? createTraceOperationEntries(playback.commands, playback.currentStep)
+    : execution.consoleEntries;
 
   function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
     setSelectedAlgorithm(algorithm);
@@ -57,10 +63,7 @@ export function MainPage() {
         algorithm={selectedAlgorithm}
         isRunning={execution.isRunning}
         onRun={runAlgorithm}
-        traceSucceeded={
-          execution.successfulSourceRevision ===
-          editorTabs.activeSource.revision
-        }
+        traceSucceeded={hasCurrentTrace}
       />
 
       <div className="main-page-content">
@@ -123,7 +126,7 @@ export function MainPage() {
           {isEditorOpen ? (
             <div className="main-page-editor-workbench" id="editor-workbench">
               <CodeEditorPanel editorTabs={editorTabs} />
-              <ConsolePanel entries={execution.consoleEntries} />
+              <ConsolePanel entries={consoleEntries} />
             </div>
           ) : null}
         </main>
