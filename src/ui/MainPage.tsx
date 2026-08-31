@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import '../assets/MainPage.css';
 import {
@@ -6,8 +6,14 @@ import {
   type AlgorithmCatalogEntry,
 } from '../features/loadData';
 import { createTraceOperationEntries } from '../features/traceConsole';
+import {
+  createTraceOwnership,
+  downloadTraceFile,
+  parseTraceFile,
+} from '../features/traceFile';
 import { useAlgorithmExecution } from '../features/useAlgorithmExecution';
 import { usePlayback } from '../playback';
+import type { ConsoleEntry } from '../runner/runner';
 import { AppHeader } from './components/AppHeader';
 import CatalogSidebar from './components/CatalogSidebar';
 import { CodeEditorPanel } from './components/CodeEditorPanel';
@@ -22,6 +28,12 @@ export function MainPage() {
     useState<AlgorithmCatalogEntry | null>(DEFAULT_ALGORITHM);
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
+  const [isImportedTraceActive, setIsImportedTraceActive] = useState(false);
+  const [traceFileError, setTraceFileError] = useState<ConsoleEntry | null>(
+    null,
+  );
+  const [traceOwnership] = useState(createTraceOwnership);
+  const traceImportSequence = useRef(0);
   const playback = usePlayback();
   const editorTabs = useEditorTabs({
     fileName: `${selectedAlgorithm?.id ?? 'starter-code'}.js`,
@@ -29,15 +41,20 @@ export function MainPage() {
     initialStructure: DEFAULT_ALGORITHM?.structure ?? null,
   });
   const execution = useAlgorithmExecution(
-    editorTabs.isCurrentSource,
+    (source) =>
+      traceOwnership.isExecutionOwner() && editorTabs.isCurrentSource(source),
     playback.load,
     playback.play,
   );
-  const hasCurrentTrace =
+  const hasGeneratedTrace =
     execution.successfulSourceRevision === editorTabs.activeSource.revision;
-  const consoleEntries = hasCurrentTrace
-    ? createTraceOperationEntries(playback.commands, playback.currentStep)
-    : execution.consoleEntries;
+  const hasCurrentTrace = isImportedTraceActive || hasGeneratedTrace;
+  const consoleEntries =
+    traceFileError !== null
+      ? [traceFileError]
+      : hasCurrentTrace
+        ? createTraceOperationEntries(playback.commands, playback.currentStep)
+        : execution.consoleEntries;
 
   function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
     setSelectedAlgorithm(algorithm);
@@ -46,7 +63,64 @@ export function MainPage() {
 
   function runAlgorithm() {
     if (selectedAlgorithm === null) return;
+
+    traceImportSequence.current += 1;
+    traceOwnership.claimExecution();
+    setIsImportedTraceActive(false);
+    setTraceFileError(null);
     void execution.run(editorTabs.activeSource);
+  }
+
+  async function importTrace(file: File) {
+    const importSequence = ++traceImportSequence.current;
+    traceOwnership.claimImport();
+    let contents: string;
+
+    try {
+      contents = await file.text();
+    } catch {
+      if (importSequence !== traceImportSequence.current) return;
+
+      setTraceFileError({
+        sequence: 0,
+        level: 'error',
+        text: 'Trace file could not be read.',
+      });
+      return;
+    }
+
+    if (importSequence !== traceImportSequence.current) return;
+
+    const result = parseTraceFile(contents);
+
+    if (!result.ok) {
+      setTraceFileError({
+        sequence: 0,
+        level: 'error',
+        text: result.error.message,
+      });
+      return;
+    }
+
+    const timelineResult = playback.load(result.commands);
+
+    if (!timelineResult.ok) {
+      setTraceFileError({
+        sequence: 0,
+        level: 'error',
+        text: `Trace file validation failed: ${timelineResult.error.message}`,
+      });
+      return;
+    }
+
+    setIsImportedTraceActive(true);
+    setTraceFileError(null);
+  }
+
+  function exportTrace() {
+    if (!hasCurrentTrace || selectedAlgorithm === null) return;
+
+    downloadTraceFile(selectedAlgorithm.id, playback.commands);
   }
 
   const pageClassName = [
@@ -61,7 +135,10 @@ export function MainPage() {
     <div className={pageClassName}>
       <AppHeader
         algorithm={selectedAlgorithm}
+        canExportTrace={hasCurrentTrace}
         isRunning={execution.isRunning}
+        onExportTrace={exportTrace}
+        onImportTrace={(file) => void importTrace(file)}
         onRun={runAlgorithm}
         traceSucceeded={hasCurrentTrace}
       />
