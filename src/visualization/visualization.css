@@ -122,3 +122,21 @@
   font-size: 0.75rem;
   font-weight: 600;
 }
+
+.visualization-edge-weight,
+.visualization-distance {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-anchor: middle;
+}
+
+.visualization-visited-edge {
+  stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
+  stroke-width: 2.5;
+}
+
+.visualization-marked-edge {
+  stroke: var(--accent-red);
+  stroke-width: 2.5;
+}

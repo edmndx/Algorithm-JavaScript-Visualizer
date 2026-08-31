@@ -11,6 +11,7 @@ import type { TraceCommand } from '../src/protocol';
 import type {
   ArraySceneState,
   EmptySceneState,
+  GraphSceneState,
   HashTableSceneState,
   LinkedListSceneState,
   MatrixSceneState,
@@ -779,5 +780,262 @@ test('lays out a rootless forest and rejects an oversized tree', async () => {
       })),
     }) ?? '',
     /256 nodes/,
+  );
+});
+
+const circularGraphScene: GraphSceneState = {
+  structure: 'graph',
+  title: 'Shortest paths',
+  message: null,
+  nodes: [
+    { id: 'a', label: 'A' },
+    { id: 'b', label: 'B' },
+    { id: 'c', label: 'C' },
+  ],
+  edges: [
+    { id: 'a-b', from: 'a', to: 'b', weight: 4 },
+    { id: 'b-c', from: 'b', to: 'c', directed: true },
+  ],
+  layout: 'circular',
+  positions: null,
+  visitedNodeIds: ['a'],
+  visitedEdgeIds: ['a-b'],
+  nodeMarkers: {},
+  edgeMarkers: {},
+  distances: { a: 0, b: 4, c: null },
+};
+
+test('dispatches a graph scene to the shared SVG shell', async () => {
+  const { default: SceneRenderer } =
+    await import('../src/visualization/SceneRenderer');
+  const markup = renderToStaticMarkup(
+    createElement(SceneRenderer, { scene: circularGraphScene }),
+  );
+
+  assert.match(markup, /<svg/);
+  assert.doesNotMatch(markup, /not available yet/);
+});
+
+test('derives deterministic circular graph coordinates from node order', async () => {
+  const { createGraphLayout } =
+    await import('../src/visualization/graphLayout');
+  const first = createGraphLayout(circularGraphScene);
+  const second = createGraphLayout(circularGraphScene);
+
+  assert.deepEqual(second, first);
+  assert.deepEqual(
+    first.nodes.map(({ id }) => id),
+    ['a', 'b', 'c'],
+  );
+  assert.equal(first.nodes[0]?.x, first.width / 2);
+  assert.ok((first.nodes[0]?.y ?? Infinity) < first.height / 2);
+});
+
+test('fits fixed graph coordinates without mutating supplied positions', async () => {
+  const { createGraphLayout } =
+    await import('../src/visualization/graphLayout');
+  const positions = {
+    a: { x: -10, y: 100 },
+    b: { x: 30, y: 300 },
+  } as const;
+  const scene: GraphSceneState = {
+    ...circularGraphScene,
+    nodes: circularGraphScene.nodes.slice(0, 2),
+    edges: circularGraphScene.edges.slice(0, 1),
+    layout: 'fixed',
+    positions,
+  };
+  const layout = createGraphLayout(scene);
+
+  assert.deepEqual(positions, {
+    a: { x: -10, y: 100 },
+    b: { x: 30, y: 300 },
+  });
+  assert.ok(
+    (layout.nodes[0]?.x ?? Infinity) < (layout.nodes[1]?.x ?? -Infinity),
+  );
+  assert.ok(
+    (layout.nodes[0]?.y ?? Infinity) < (layout.nodes[1]?.y ?? -Infinity),
+  );
+});
+
+test('preserves fixed graph aspect ratio for non-square coordinates', async () => {
+  const { createGraphLayout } =
+    await import('../src/visualization/graphLayout');
+  const layout = createGraphLayout({
+    ...circularGraphScene,
+    layout: 'fixed',
+    nodes: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+    edges: [],
+    positions: {
+      a: { x: -20, y: -5 },
+      b: { x: 80, y: -5 },
+      c: { x: -20, y: 5 },
+    },
+  });
+  const [a, b, c] = layout.nodes;
+  assert.ok(a !== undefined && b !== undefined && c !== undefined);
+  if (a === undefined || b === undefined || c === undefined) return;
+
+  const renderedRatio = (b.x - a.x) / (c.y - a.y);
+  assert.ok(Math.abs(renderedRatio - 10) < 1e-9);
+});
+
+test('creates distinct deterministic geometry for graph multiedges', async () => {
+  const { createGraphLayout } =
+    await import('../src/visualization/graphLayout');
+  const renderer = await import('../src/visualization/renderGraph');
+  assert.equal('createGraphEdgeGeometries' in renderer, true);
+  if (!('createGraphEdgeGeometries' in renderer)) return;
+
+  const createLayout = (edges: GraphSceneState['edges']) =>
+    createGraphLayout({
+      ...circularGraphScene,
+      layout: 'fixed',
+      nodes: [{ id: 'a' }, { id: 'b' }],
+      edges,
+      positions: { a: { x: 0, y: 0 }, b: { x: 100, y: 0 } },
+    });
+
+  const parallel = renderer.createGraphEdgeGeometries(
+    createLayout([
+      { id: 'p1', from: 'a', to: 'b', directed: true },
+      { id: 'p2', from: 'a', to: 'b', directed: true },
+      { id: 'p3', from: 'a', to: 'b', directed: true },
+    ]).edges,
+  );
+  assert.equal(new Set(parallel.map(({ path }) => path)).size, 3);
+  assert.equal(
+    new Set(parallel.map(({ labelX, labelY }) => `${labelX}:${labelY}`)).size,
+    3,
+  );
+
+  const opposite = renderer.createGraphEdgeGeometries(
+    createLayout([
+      { id: 'forward', from: 'a', to: 'b', directed: true },
+      { id: 'reverse', from: 'b', to: 'a', directed: true },
+    ]).edges,
+  );
+  assert.equal(new Set(opposite.map(({ path }) => path)).size, 2);
+
+  const loops = renderer.createGraphEdgeGeometries(
+    createLayout([
+      { id: 'loop-1', from: 'a', to: 'a', directed: true },
+      { id: 'loop-2', from: 'a', to: 'a', directed: true },
+    ]).edges,
+  );
+  assert.equal(new Set(loops.map(({ path }) => path)).size, 2);
+  assert.equal(
+    new Set(loops.map(({ labelX, labelY }) => `${labelX}:${labelY}`)).size,
+    2,
+  );
+});
+
+test('keeps coincident graph endpoints and maximum edge families distinct and bounded', async () => {
+  const { createGraphLayout } =
+    await import('../src/visualization/graphLayout');
+  const { createGraphEdgeGeometries, createGraphViewBox } =
+    await import('../src/visualization/renderGraph');
+  const scene: GraphSceneState = {
+    ...circularGraphScene,
+    nodes: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+    edges: [
+      ...Array.from({ length: 11 }, (_, index) => ({
+        id: `parallel-${index}`,
+        from: 'a',
+        to: 'b',
+        directed: true,
+      })),
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `loop-${index}`,
+        from: 'b',
+        to: 'b',
+        directed: true,
+      })),
+      { id: 'reverse', from: 'b', to: 'a', directed: true },
+    ],
+    layout: 'fixed',
+    positions: {
+      a: { x: 7, y: 9 },
+      b: { x: 7, y: 9 },
+      c: { x: -100, y: 1_000 },
+    },
+  };
+  const layout = createGraphLayout(scene);
+  const geometries = createGraphEdgeGeometries(layout.edges);
+  const paths = geometries.map(({ path }) => path);
+
+  assert.equal(new Set(paths).size, paths.length);
+  assert.ok(
+    geometries
+      .filter(({ id }) => id.startsWith('parallel') || id === 'reverse')
+      .every(({ path }) => path.includes(' Q ')),
+  );
+
+  const viewBox = createGraphViewBox(
+    layout.width,
+    layout.height,
+    layout.nodes,
+    geometries,
+  );
+  const [minimumX, minimumY, width, height] = viewBox.split(' ').map(Number);
+  assert.ok(minimumX !== undefined && minimumY !== undefined);
+  assert.ok(width !== undefined && height !== undefined);
+  assert.ok(minimumY < 0 || minimumX < 0);
+  assert.ok(width <= 4_096);
+  assert.ok(height <= 4_096);
+  for (const geometry of geometries) {
+    assert.ok(geometry.bounds.minimumX >= minimumX);
+    assert.ok(geometry.bounds.maximumX <= minimumX + width);
+    assert.ok(geometry.bounds.minimumY >= minimumY);
+    assert.ok(geometry.bounds.maximumY <= minimumY + height);
+  }
+
+  const delimiterCollisionLayout = createGraphLayout({
+    ...scene,
+    nodes: [{ id: 'a' }, { id: 'b\0c' }, { id: 'a\0b' }, { id: 'c' }],
+    edges: [
+      { id: 'first', from: 'a', to: 'b\0c' },
+      { id: 'second', from: 'a\0b', to: 'c' },
+    ],
+    positions: {
+      a: { x: 0, y: 0 },
+      'b\0c': { x: 0, y: 0 },
+      'a\0b': { x: 0, y: 0 },
+      c: { x: 0, y: 0 },
+    },
+  });
+  assert.equal(
+    new Set(
+      createGraphEdgeGeometries(delimiterCollisionLayout.edges).map(
+        ({ path }) => path,
+      ),
+    ).size,
+    2,
+  );
+});
+
+test('applies independent graph node and edge capacity limits', async () => {
+  const { getVisualizationCapacityMessage } =
+    await import('../src/visualization/visualizationLimits');
+
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...circularGraphScene,
+      nodes: Array.from({ length: 201 }, (_, index) => ({ id: String(index) })),
+      edges: [],
+    }) ?? '',
+    /200 nodes/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...circularGraphScene,
+      edges: Array.from({ length: 601 }, (_, index) => ({
+        id: String(index),
+        from: 'a',
+        to: 'b',
+      })),
+    }) ?? '',
+    /600 edges/,
   );
 });
