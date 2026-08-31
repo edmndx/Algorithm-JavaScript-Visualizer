@@ -1,21 +1,25 @@
 import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import type { SceneState } from '../../scene';
+import SceneRenderer from '../../visualization/SceneRenderer';
 import PlaybackControls from './PlaybackControls';
 
 type VisualizationPanelProps = {
-  currentStep: number;
-  totalSteps: number;
-  isPlaying: boolean;
-  canPlay: boolean;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  onPlay: () => void;
-  onPause: () => void;
-  onNext: () => void;
-  onPrevious: () => void;
-  onReset: () => void;
+  readonly scene: SceneState;
+  readonly currentStep: number;
+  readonly totalSteps: number;
+  readonly isPlaying: boolean;
+  readonly canPlay: boolean;
+  readonly canGoBack: boolean;
+  readonly canGoForward: boolean;
+  readonly onPlay: () => void;
+  readonly onPause: () => void;
+  readonly onNext: () => void;
+  readonly onPrevious: () => void;
+  readonly onReset: () => void;
 };
 
 export default function VisualizationPanel({
+  scene,
   currentStep,
   totalSteps,
   isPlaying,
@@ -57,7 +61,21 @@ export default function VisualizationPanel({
       </div>
 
       <div className="visualization-panel-canvas">
-        <div className="visualization-bar-stage" aria-hidden="true" />
+        {scene.title !== null || scene.message !== null ? (
+          <div className="visualization-scene-metadata">
+            {scene.title !== null ? (
+              <h2 className="visualization-scene-title">{scene.title}</h2>
+            ) : null}
+            {scene.message !== null ? (
+              <p
+                className={`visualization-scene-message visualization-scene-message--${scene.message.level}`}
+              >
+                {scene.message.text}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        <SceneRenderer scene={scene} />
       </div>
 
       <PlaybackControls

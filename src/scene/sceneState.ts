@@ -25,6 +25,7 @@ export type SceneMessage = {
 export type SceneStateBase = {
   readonly title: string | null;
   readonly message: SceneMessage | null;
+  readonly isPlaceholder?: true;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -43,6 +44,7 @@ export type ArraySceneState = SceneStateBase & {
   readonly structure: 'array';
 
   readonly values: readonly TraceValue[];
+  readonly itemIds: readonly string[];
   readonly labels: readonly string[];
 
   readonly comparedIndices: readonly [number, number] | null;
@@ -194,6 +196,108 @@ export function createInitialScene(): EmptySceneState {
     structure: null,
     title: null,
     message: null,
+  };
+}
+
+export function createInitializedScene(
+  structure: TraceStructure,
+  title: string | null = null,
+): Exclude<SceneState, EmptySceneState> {
+  const base = {
+    title,
+    message: null,
+  } as const;
+
+  switch (structure) {
+    case 'array':
+      return {
+        ...base,
+        structure,
+        values: [],
+        itemIds: [],
+        labels: [],
+        comparedIndices: null,
+        markers: {},
+      };
+    case 'matrix':
+      return {
+        ...base,
+        structure,
+        values: [],
+        comparedPositions: null,
+        markers: {},
+      };
+    case 'tree':
+      return {
+        ...base,
+        structure,
+        rootId: null,
+        nodes: [],
+        comparedNodeIds: null,
+        visitedNodeIds: [],
+        markers: {},
+      };
+    case 'graph':
+      return {
+        ...base,
+        structure,
+        nodes: [],
+        edges: [],
+        layout: 'circular',
+        positions: null,
+        visitedNodeIds: [],
+        visitedEdgeIds: [],
+        nodeMarkers: {},
+        edgeMarkers: {},
+        distances: {},
+      };
+    case 'stack':
+      return {
+        ...base,
+        structure,
+        values: [],
+        peekedIndex: null,
+        markers: {},
+      };
+    case 'queue':
+      return {
+        ...base,
+        structure,
+        values: [],
+        peekedIndex: null,
+        markers: {},
+      };
+    case 'linked-list':
+      return {
+        ...base,
+        structure,
+        kind: 'singly',
+        headId: null,
+        tailId: null,
+        nodes: [],
+        visitedNodeIds: [],
+        markers: {},
+      };
+    case 'hash-table':
+      return {
+        ...base,
+        structure,
+        bucketCount: 0,
+        strategy: 'chaining',
+        entries: [],
+        visitedBucketIndices: [],
+        visitedEntryIds: [],
+        markers: {},
+      };
+  }
+}
+
+export function createPlaceholderScene(
+  structure: TraceStructure,
+): Exclude<SceneState, EmptySceneState> {
+  return {
+    ...createInitializedScene(structure),
+    isPlaceholder: true,
   };
 }
 

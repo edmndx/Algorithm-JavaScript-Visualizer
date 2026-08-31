@@ -1,5 +1,6 @@
 import { assign, setup } from 'xstate';
 
+import type { TraceStructure } from '../protocol';
 import type { TraceTimeline } from './timeline';
 
 export const PLAYBACK_STEP_DELAY_MS = 750;
@@ -7,10 +8,16 @@ export const PLAYBACK_STEP_DELAY_MS = 750;
 type PlaybackContext = {
   readonly timeline: TraceTimeline | null;
   readonly currentStep: number;
+  readonly structure: TraceStructure;
+};
+
+type PlaybackInput = {
+  readonly initialStructure: TraceStructure;
 };
 
 type PlaybackEvent =
   | { readonly type: 'LOAD'; readonly timeline: TraceTimeline | null }
+  | { readonly type: 'INITIALIZE'; readonly structure: TraceStructure }
   | { readonly type: 'PLAY' }
   | { readonly type: 'PAUSE' }
   | { readonly type: 'NEXT' }
@@ -21,6 +28,7 @@ export const playbackMachine = setup({
   types: {
     context: {} as PlaybackContext,
     events: {} as PlaybackEvent,
+    input: {} as PlaybackInput,
   },
   delays: {
     playbackStep: PLAYBACK_STEP_DELAY_MS,
@@ -28,19 +36,30 @@ export const playbackMachine = setup({
   guards: {
     hasLoadedTimeline: ({ event }) =>
       event.type === 'LOAD' && event.timeline !== null,
-    hasTimeline: ({ context }) => context.timeline !== null,
+    hasOperations: ({ context }) =>
+      context.timeline !== null && context.timeline.operationCount > 0,
     hasNextStep: ({ context }) =>
       context.timeline !== null &&
-      context.currentStep < context.timeline.commands.length,
+      context.currentStep < context.timeline.operationCount,
     hasPreviousStep: ({ context }) => context.currentStep > 0,
     nextStepIsFinal: ({ context }) =>
       context.timeline !== null &&
-      context.currentStep + 1 >= context.timeline.commands.length,
+      context.currentStep + 1 >= context.timeline.operationCount,
   },
   actions: {
-    loadTimeline: assign(({ event }) => ({
+    loadTimeline: assign(({ event, context }) => ({
       timeline: event.type === 'LOAD' ? event.timeline : null,
       currentStep: 0,
+      structure:
+        event.type === 'LOAD' && event.timeline !== null
+          ? event.timeline.structure
+          : context.structure,
+    })),
+    initializeStructure: assign(({ event, context }) => ({
+      timeline: null,
+      currentStep: 0,
+      structure:
+        event.type === 'INITIALIZE' ? event.structure : context.structure,
     })),
     reset: assign({ currentStep: 0 }),
     advance: assign({
@@ -56,12 +75,17 @@ export const playbackMachine = setup({
   },
 }).createMachine({
   id: 'playback',
-  initial: 'empty',
-  context: {
+  initial: 'paused',
+  context: ({ input }) => ({
     timeline: null,
     currentStep: 0,
-  },
+    structure: input.initialStructure,
+  }),
   on: {
+    INITIALIZE: {
+      target: '.paused',
+      actions: 'initializeStructure',
+    },
     LOAD: [
       {
         guard: 'hasLoadedTimeline',
@@ -81,7 +105,7 @@ export const playbackMachine = setup({
         PLAY: [
           { guard: 'hasNextStep', target: 'playing' },
           {
-            guard: 'hasTimeline',
+            guard: 'hasOperations',
             target: 'playing',
             actions: 'reset',
           },

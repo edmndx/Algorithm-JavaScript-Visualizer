@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { RunnableSource } from './codeEditor';
 import type { PlaybackController } from '../playback';
 import type { ConsoleEntry } from '../runner/runner';
-import { SandboxClient } from '../sandbox';
+import { SandboxClient, type SandboxRunResult } from '../sandbox';
 
 const UNSUPPORTED_TRACE_MESSAGE =
   'Semantic trace unavailable: this code pattern is not supported by automatic instrumentation.';
@@ -14,15 +14,20 @@ interface AlgorithmExecution {
   readonly consoleEntries: readonly ConsoleEntry[];
   readonly isRunning: boolean;
   readonly successfulSourceRevision: number | null;
+  readonly initialize: (
+    source: Pick<RunnableSource, 'code' | 'structure'>,
+  ) => Promise<void>;
   readonly run: (source: RunnableSource) => Promise<void>;
 }
 
 export function useAlgorithmExecution(
   isCurrentSource: (source: RunnableSource) => boolean,
+  isInitializationOwner: () => boolean,
   loadPlayback: PlaybackController['load'],
   playPlayback: PlaybackController['play'],
 ): AlgorithmExecution {
   const sandboxClient = useRef<SandboxClient | null>(null);
+  const activeTask = useRef<'initialization' | 'run' | null>(null);
   const isRunActive = useRef(false);
   const runSequence = useRef(0);
   const [isRunning, setIsRunning] = useState(false);
@@ -33,18 +38,63 @@ export function useAlgorithmExecution(
     [],
   );
 
-  useEffect(() => {
-    return () => {
-      runSequence.current += 1;
-      const client = sandboxClient.current;
-      sandboxClient.current = null;
-      client?.dispose();
-    };
+  const discardActiveTask = useCallback(() => {
+    runSequence.current += 1;
+    activeTask.current = null;
+    isRunActive.current = false;
+    const client = sandboxClient.current;
+    sandboxClient.current = null;
+    client?.dispose();
   }, []);
+
+  useEffect(() => discardActiveTask, [discardActiveTask]);
+
+  const initialize = useCallback(
+    async (source: Pick<RunnableSource, 'code' | 'structure'>) => {
+      discardActiveTask();
+      setIsRunning(false);
+      setSuccessfulSourceRevision(null);
+      setConsoleEntries([]);
+
+      let client: SandboxClient;
+
+      try {
+        client = new SandboxClient();
+        sandboxClient.current = client;
+      } catch {
+        return;
+      }
+
+      const initializationId = ++runSequence.current;
+      activeTask.current = 'initialization';
+
+      try {
+        const sandboxResult = await client.run(source.code, source.structure);
+        commitAlgorithmInitialization(
+          sandboxResult,
+          () =>
+            initializationId === runSequence.current && isInitializationOwner(),
+          loadPlayback,
+        );
+      } catch {
+        if (initializationId === runSequence.current) {
+          sandboxClient.current = null;
+          client.dispose();
+        }
+      } finally {
+        if (initializationId === runSequence.current) {
+          activeTask.current = null;
+        }
+      }
+    },
+    [discardActiveTask, isInitializationOwner, loadPlayback],
+  );
 
   async function run(runSource: RunnableSource) {
     if (isRunActive.current) return;
+    if (activeTask.current === 'initialization') discardActiveTask();
     isRunActive.current = true;
+    activeTask.current = 'run';
     setSuccessfulSourceRevision(null);
 
     let client = sandboxClient.current;
@@ -127,6 +177,7 @@ export function useAlgorithmExecution(
       ]);
     } finally {
       if (runId === runSequence.current) {
+        activeTask.current = null;
         isRunActive.current = false;
         setIsRunning(false);
       }
@@ -135,10 +186,22 @@ export function useAlgorithmExecution(
 
   return {
     consoleEntries,
+    initialize,
     isRunning,
     successfulSourceRevision,
     run,
   };
+}
+
+export function commitAlgorithmInitialization(
+  sandboxResult: SandboxRunResult,
+  isCurrentInitialization: () => boolean,
+  loadPlayback: PlaybackController['load'],
+): void {
+  if (!isCurrentInitialization()) return;
+  if (sandboxResult.status !== 'instrumented') return;
+
+  loadPlayback(sandboxResult.result.commands);
 }
 
 function createConsoleEntry(
