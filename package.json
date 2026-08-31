@@ -2,7 +2,7 @@
   "name": "algorithm-javascript-visualizer",
   "version": "1.0.0",
   "type": "module",
-  "description": "Algorithm JavaScript Visualizer is a local-first tool for visualizing JavaScript algorithms. It converts user-written JavaScript code into structured JSON algorithm states and renders those states as interactive D3.js and Canvas visualizations.",
+  "description": "A local-first JavaScript algorithm visualizer that renders playback SceneState with D3.js and SVG.",
   "private": true,
   "engines": {
     "node": ">=22 <26",
