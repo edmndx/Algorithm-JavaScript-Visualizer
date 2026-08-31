@@ -1,6 +1,7 @@
 import type { SceneState } from '../scene';
 import D3Scene from './D3Scene';
 import { renderArray } from './renderArray';
+import { renderGraph } from './renderGraph';
 import { renderHashTable } from './renderHashTable';
 import { renderLinkedList } from './renderLinkedList';
 import { renderMatrix } from './renderMatrix';
@@ -12,14 +13,6 @@ import { getVisualizationCapacityMessage } from './visualizationLimits';
 type SceneRendererProps = {
   readonly scene: SceneState;
 };
-
-function unavailableStructure(structure: string) {
-  return (
-    <p className="visualization-empty-state">
-      {structure} visualization is not available yet.
-    </p>
-  );
-}
 
 export default function SceneRenderer({ scene }: SceneRendererProps) {
   if (scene.structure === null) {
@@ -98,6 +91,13 @@ export default function SceneRenderer({ scene }: SceneRendererProps) {
         />
       );
     case 'graph':
-      return unavailableStructure(scene.structure);
+      return (
+        <D3Scene
+          key={scene.structure}
+          label="Graph visualization"
+          render={renderGraph}
+          scene={scene}
+        />
+      );
   }
 }
