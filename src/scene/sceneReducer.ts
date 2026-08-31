@@ -12,6 +12,7 @@ import type {
 
 import {
   createInitialScene,
+  createInitializedScene,
   type SceneMessage,
   type SceneState,
 } from './sceneState';
@@ -126,6 +127,7 @@ export function reduceTraceCommand(
       return {
         ...scene,
         values: [...command.values],
+        itemIds: createItemIds('array-item', command.values.length),
         labels: command.labels === undefined ? [] : [...command.labels],
         comparedIndices: null,
         markers: {},
@@ -146,6 +148,7 @@ export function reduceTraceCommand(
 
       const [firstIndex, secondIndex] = command.indices;
       const values = [...scene.values];
+      const itemIds = [...scene.itemIds];
 
       assertIndex(firstIndex, values.length, command.type);
 
@@ -164,9 +167,23 @@ export function reduceTraceCommand(
       values[firstIndex] = secondValue;
       values[secondIndex] = firstValue;
 
+      const firstItemId = itemIds[firstIndex];
+      const secondItemId = itemIds[secondIndex];
+
+      if (firstItemId === undefined || secondItemId === undefined) {
+        throw new SceneReducerError(
+          'INDEX_OUT_OF_BOUNDS',
+          `Cannot apply ${command.type} to the requested array identities.`,
+        );
+      }
+
+      itemIds[firstIndex] = secondItemId;
+      itemIds[secondIndex] = firstItemId;
+
       return {
         ...scene,
         values,
+        itemIds,
       };
     }
 
@@ -1063,102 +1080,7 @@ function reduceSceneInit(
     );
   }
 
-  const base = {
-    title: command.title ?? null,
-    message: null,
-  };
-
-  switch (command.structure) {
-    case 'array':
-      return {
-        ...base,
-        structure: 'array',
-        values: [],
-        labels: [],
-        comparedIndices: null,
-        markers: {},
-      };
-
-    case 'matrix':
-      return {
-        ...base,
-        structure: 'matrix',
-        values: [],
-        comparedPositions: null,
-        markers: {},
-      };
-
-    case 'tree':
-      return {
-        ...base,
-        structure: 'tree',
-        rootId: null,
-        nodes: [],
-        comparedNodeIds: null,
-        visitedNodeIds: [],
-        markers: {},
-      };
-
-    case 'graph':
-      return {
-        ...base,
-        structure: 'graph',
-        nodes: [],
-        edges: [],
-        layout: 'circular',
-        positions: null,
-        visitedNodeIds: [],
-        visitedEdgeIds: [],
-        nodeMarkers: {},
-        edgeMarkers: {},
-        distances: {},
-      };
-
-    case 'stack':
-      return {
-        ...base,
-        structure: 'stack',
-        values: [],
-        peekedIndex: null,
-        markers: {},
-      };
-
-    case 'queue':
-      return {
-        ...base,
-        structure: 'queue',
-        values: [],
-        peekedIndex: null,
-        markers: {},
-      };
-
-    case 'linked-list':
-      return {
-        ...base,
-        structure: 'linked-list',
-        kind: 'singly',
-        headId: null,
-        tailId: null,
-        nodes: [],
-        visitedNodeIds: [],
-        markers: {},
-      };
-
-    case 'hash-table':
-      return {
-        ...base,
-        structure: 'hash-table',
-        bucketCount: 0,
-        strategy: 'chaining',
-        entries: [],
-        visitedBucketIndices: [],
-        visitedEntryIds: [],
-        markers: {},
-      };
-
-    default:
-      return assertNever(command.structure);
-  }
+  return createInitializedScene(command.structure, command.title ?? null);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1236,6 +1158,10 @@ function assertIndex(
       `Command "${commandType}" references index ${index} outside a collection of length ${length}.`,
     );
   }
+}
+
+function createItemIds(prefix: string, count: number): readonly string[] {
+  return Array.from({ length: count }, (_, index) => `${prefix}-${index}`);
 }
 
 /* -------------------------------------------------------------------------- */

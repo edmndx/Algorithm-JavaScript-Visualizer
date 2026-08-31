@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import '../assets/MainPage.css';
+import '../visualization/visualization.css';
 import {
   algorithmCatalog,
   type AlgorithmCatalogEntry,
@@ -12,7 +13,7 @@ import {
   parseTraceFile,
 } from '../features/traceFile';
 import { useAlgorithmExecution } from '../features/useAlgorithmExecution';
-import { usePlayback } from '../playback';
+import { TRACE_INITIALIZATION_COMMAND_COUNT, usePlayback } from '../playback';
 import type { ConsoleEntry } from '../runner/runner';
 import { AppHeader } from './components/AppHeader';
 import CatalogSidebar from './components/CatalogSidebar';
@@ -34,7 +35,7 @@ export function MainPage() {
   );
   const [traceOwnership] = useState(createTraceOwnership);
   const traceImportSequence = useRef(0);
-  const playback = usePlayback();
+  const playback = usePlayback(DEFAULT_ALGORITHM?.structure ?? 'array');
   const editorTabs = useEditorTabs({
     fileName: `${selectedAlgorithm?.id ?? 'starter-code'}.js`,
     initialCode: DEFAULT_ALGORITHM?.code ?? '',
@@ -43,9 +44,11 @@ export function MainPage() {
   const execution = useAlgorithmExecution(
     (source) =>
       traceOwnership.isExecutionOwner() && editorTabs.isCurrentSource(source),
+    traceOwnership.isExecutionOwner,
     playback.load,
     playback.play,
   );
+  const initializeAlgorithm = execution.initialize;
   const hasGeneratedTrace =
     execution.successfulSourceRevision === editorTabs.activeSource.revision;
   const hasCurrentTrace = isImportedTraceActive || hasGeneratedTrace;
@@ -53,12 +56,27 @@ export function MainPage() {
     traceFileError !== null
       ? [traceFileError]
       : hasCurrentTrace
-        ? createTraceOperationEntries(playback.commands, playback.currentStep)
+        ? createTraceOperationEntries(
+            playback.commands.slice(TRACE_INITIALIZATION_COMMAND_COUNT),
+            playback.currentStep,
+          )
         : execution.consoleEntries;
 
+  useEffect(() => {
+    if (DEFAULT_ALGORITHM !== null) {
+      void initializeAlgorithm(DEFAULT_ALGORITHM);
+    }
+  }, [initializeAlgorithm]);
+
   function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
+    traceImportSequence.current += 1;
+    traceOwnership.claimExecution();
+    playback.initialize(algorithm.structure);
     setSelectedAlgorithm(algorithm);
+    setIsImportedTraceActive(false);
+    setTraceFileError(null);
     editorTabs.replacePrimarySource(algorithm.code, algorithm.structure);
+    void initializeAlgorithm(algorithm);
   }
 
   function runAlgorithm() {
@@ -170,6 +188,7 @@ export function MainPage() {
         <main className="main-page-workspace">
           <section className="main-page-workspace-content">
             <VisualizationPanel
+              scene={playback.scene}
               currentStep={playback.currentStep}
               totalSteps={playback.totalSteps}
               isPlaying={playback.isPlaying}
