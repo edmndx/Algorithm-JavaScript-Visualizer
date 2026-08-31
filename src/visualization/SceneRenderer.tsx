@@ -6,6 +6,7 @@ import { renderLinkedList } from './renderLinkedList';
 import { renderMatrix } from './renderMatrix';
 import { renderQueue } from './renderQueue';
 import { renderStack } from './renderStack';
+import { renderTree } from './renderTree';
 import { getVisualizationCapacityMessage } from './visualizationLimits';
 
 type SceneRendererProps = {
@@ -88,6 +89,14 @@ export default function SceneRenderer({ scene }: SceneRendererProps) {
         />
       );
     case 'tree':
+      return (
+        <D3Scene
+          key={scene.structure}
+          label="Tree visualization"
+          render={renderTree}
+          scene={scene}
+        />
+      );
     case 'graph':
       return unavailableStructure(scene.structure);
   }

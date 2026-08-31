@@ -77,6 +77,11 @@
   stroke: var(--accent-red);
 }
 
+.visualization-compared .visualization-node {
+  fill: color-mix(in oklab, var(--accent-red) 20%, var(--surface-2));
+  stroke: var(--accent-red);
+}
+
 .visualization-marked .visualization-cell {
   stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
 }
@@ -92,7 +97,8 @@
 }
 
 .visualization-head .visualization-node,
-.visualization-tail .visualization-node {
+.visualization-tail .visualization-node,
+.visualization-root .visualization-node {
   stroke-width: 3;
 }
 

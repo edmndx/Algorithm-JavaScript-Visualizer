@@ -17,6 +17,7 @@ import type {
   QueueSceneState,
   SceneState,
   StackSceneState,
+  TreeSceneState,
 } from '../src/scene';
 
 const emptyScene: EmptySceneState = {
@@ -628,5 +629,155 @@ test('fails closed when a hash-table entry references an invalid bucket', async 
         ],
       }),
     /outside.*bucket 1.*bucketCount/i,
+  );
+});
+
+const treeScene: TreeSceneState = {
+  structure: 'tree',
+  title: 'Binary search tree',
+  message: null,
+  rootId: 'root',
+  nodes: [
+    { id: 'root', value: 50, children: ['left', 'right'] },
+    { id: 'left', value: 30, children: [] },
+    { id: 'right', value: 70, children: [] },
+  ],
+  comparedNodeIds: ['root', 'left'],
+  visitedNodeIds: ['root'],
+  markers: {},
+};
+
+test('dispatches a tree scene to the shared SVG shell', async () => {
+  const { default: SceneRenderer } =
+    await import('../src/visualization/SceneRenderer');
+  const markup = renderToStaticMarkup(
+    createElement(SceneRenderer, { scene: treeScene }),
+  );
+
+  assert.match(markup, /<svg/);
+  assert.doesNotMatch(markup, /not available yet/);
+});
+
+test('lays out the same tree deterministically with one link per child', async () => {
+  const { createTreeLayout } = await import('../src/visualization/treeLayout');
+  const first = createTreeLayout(treeScene);
+  const second = createTreeLayout(treeScene);
+
+  assert.deepEqual(second, first);
+  assert.deepEqual(
+    first.nodes.map(({ id }) => id),
+    ['root', 'left', 'right'],
+  );
+  assert.deepEqual(
+    first.links.map(({ target }) => target.id),
+    ['left', 'right'],
+  );
+});
+
+test('creates collision-safe tree links and rejects repeated children', async () => {
+  const { createTreeLayout } = await import('../src/visualization/treeLayout');
+  const layout = createTreeLayout({
+    ...treeScene,
+    nodes: [
+      { id: 'root', value: 0, children: ['a', 'a:b'] },
+      { id: 'a', value: 1, children: ['b:c'] },
+      { id: 'a:b', value: 2, children: ['c'] },
+      { id: 'b:c', value: 3, children: [] },
+      { id: 'c', value: 4, children: [] },
+    ],
+  });
+
+  assert.equal(new Set(layout.links.map(({ id }) => id)).size, 4);
+  assert.throws(
+    () =>
+      createTreeLayout({
+        ...treeScene,
+        nodes: [
+          { id: 'root', value: 0, children: ['left', 'left'] },
+          { id: 'left', value: 1, children: [] },
+        ],
+      }),
+    /repeated/i,
+  );
+});
+
+test('lays out an unbalanced single-child tree within deterministic bounds', async () => {
+  const { createTreeLayout } = await import('../src/visualization/treeLayout');
+  const scene: TreeSceneState = {
+    ...treeScene,
+    nodes: [
+      { id: 'root', value: 1, children: ['child'] },
+      { id: 'child', value: 2, children: ['leaf'] },
+      { id: 'leaf', value: 3, children: [] },
+    ],
+  };
+  const layout = createTreeLayout(scene);
+
+  assert.deepEqual(
+    layout.nodes.map(({ id }) => id),
+    ['root', 'child', 'leaf'],
+  );
+  assert.ok(layout.nodes.every(({ x }) => x > 0 && x < layout.width));
+  assert.ok(layout.nodes.every(({ y }) => y > 0 && y < layout.height));
+});
+
+test('lays out transient disconnected tree components deterministically', async () => {
+  const { createTreeLayout } = await import('../src/visualization/treeLayout');
+  const scene: TreeSceneState = {
+    ...treeScene,
+    nodes: [
+      { id: 'root', value: 1, children: ['child'] },
+      { id: 'child', value: 2, children: [] },
+      { id: 'detached', value: 3, children: [] },
+    ],
+  };
+  const first = createTreeLayout(scene);
+  const second = createTreeLayout(scene);
+
+  assert.deepEqual(second, first);
+  assert.deepEqual(
+    first.nodes.map(({ id }) => id),
+    ['root', 'child', 'detached'],
+  );
+  assert.deepEqual(
+    first.links.map(({ target }) => target.id),
+    ['child'],
+  );
+  assert.ok(first.nodes.every(({ x }) => x > 0 && x < first.width));
+});
+
+test('lays out a rootless forest and rejects an oversized tree', async () => {
+  const { createTreeLayout } = await import('../src/visualization/treeLayout');
+  const { getVisualizationCapacityMessage } =
+    await import('../src/visualization/visualizationLimits');
+
+  const rootless = createTreeLayout({ ...treeScene, rootId: null });
+  assert.deepEqual(
+    rootless.nodes.map(({ id }) => id),
+    ['root', 'left', 'right'],
+  );
+  assert.equal(rootless.links.length, 2);
+  const maximumForest = createTreeLayout({
+    ...treeScene,
+    rootId: null,
+    nodes: Array.from({ length: 39 }, (_, index) => ({
+      id: String(index),
+      value: index,
+      children: [],
+    })),
+  });
+  assert.equal(maximumForest.nodes.length, 39);
+  assert.ok(maximumForest.width <= 4_096);
+  assert.ok(maximumForest.height <= 4_096);
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...treeScene,
+      nodes: Array.from({ length: 257 }, (_, index) => ({
+        id: String(index),
+        value: index,
+        children: [],
+      })),
+    }) ?? '',
+    /256 nodes/,
   );
 });
