@@ -15,6 +15,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test": "tsx --test tests/runnerConsole.test.ts tests/traceConsole.test.ts tests/traceFile.test.ts tests/visualization.test.ts tests/visualizationDom.test.ts tests/catalogVisualization.test.ts",
+    "test:visualization": "tsx --test tests/visualization.test.ts tests/visualizationDom.test.ts tests/catalogVisualization.test.ts",
     "preview": "vite preview --host 127.0.0.1"
   },
   "repository": {
@@ -59,6 +61,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
+    "happy-dom": "^20.14.0",
     "prettier": "^3.9.5",
     "tsx": "^4.23.0",
     "typescript": "7.0.2",

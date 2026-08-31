@@ -1,26 +1,80 @@
 .visualization-svg {
+  --visualization-green: oklch(0.55 0.14 155);
+
   display: block;
   width: 100%;
   height: 100%;
   overflow: visible;
 }
 
-.visualization-cell {
-  fill: color-mix(in oklab, var(--surface-2) 88%, transparent);
-  stroke: color-mix(in oklab, var(--accent-blue) 62%, var(--border));
-  stroke-width: 2;
+.visualization-cell,
+.visualization-node {
+  fill: color-mix(in oklab, var(--surface) 50%, transparent);
+  stroke: var(--border);
+  stroke-width: 1;
+  transition:
+    fill 300ms,
+    stroke 300ms,
+    filter 300ms;
+  vector-effect: non-scaling-stroke;
 }
 
-.visualization-node {
-  fill: color-mix(in oklab, var(--surface-2) 88%, transparent);
-  stroke: color-mix(in oklab, var(--accent-blue) 62%, var(--border));
-  stroke-width: 2;
+.visualization-array-gradient stop,
+.visualization-bar {
+  transition:
+    fill 300ms,
+    stroke 300ms,
+    filter 300ms;
+}
+
+#visualization-array-blue-gradient stop:first-child {
+  stop-color: color-mix(in oklab, var(--accent-blue) 25%, transparent);
+}
+
+#visualization-array-blue-gradient stop:last-child {
+  stop-color: color-mix(in oklab, var(--accent-blue) 5%, transparent);
+}
+
+#visualization-array-red-gradient stop:first-child {
+  stop-color: color-mix(in oklab, var(--accent-red) 40%, transparent);
+}
+
+#visualization-array-red-gradient stop:last-child {
+  stop-color: color-mix(in oklab, var(--accent-red) 10%, transparent);
+}
+
+.visualization-bar {
+  fill: url('#visualization-array-blue-gradient');
+  stroke: color-mix(in oklab, var(--accent-blue) 40%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.visualization-array-item.visualization-compared .visualization-bar {
+  fill: url('#visualization-array-red-gradient');
+  stroke: color-mix(in oklab, var(--accent-red) 70%, transparent);
+  filter: drop-shadow(
+    0 0 10px color-mix(in oklab, var(--accent-red) 70%, transparent)
+  );
 }
 
 .visualization-edge {
   fill: none;
-  stroke: color-mix(in oklab, var(--muted-foreground) 72%, transparent);
-  stroke-width: 2;
+  stroke: var(--border);
+  stroke-width: 1.5;
+  transition:
+    stroke 300ms,
+    stroke-width 300ms,
+    opacity 300ms,
+    filter 300ms;
+  vector-effect: non-scaling-stroke;
+}
+
+.visualization-array-baseline {
+  stroke: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
 }
 
 .visualization-arrowhead path {
@@ -30,113 +84,234 @@
 .visualization-value,
 .visualization-label,
 .visualization-index,
-.visualization-marker {
-  font-family: var(--font-mono);
-  text-anchor: middle;
-}
-
+.visualization-marker,
 .visualization-node-id,
 .visualization-node-role,
 .visualization-structure-label,
-.visualization-empty-structure {
-  fill: var(--muted-foreground);
+.visualization-structure-size,
+.visualization-empty-structure,
+.visualization-direction-label,
+.visualization-edge-weight,
+.visualization-distance {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
   text-anchor: middle;
 }
 
-.visualization-structure-label {
-  font-weight: 600;
-  text-anchor: start;
-  text-transform: uppercase;
-}
-
-.visualization-empty-structure {
-  font-size: 0.75rem;
-}
-
 .visualization-value {
-  fill: var(--foreground);
-  font-size: 1rem;
-  font-weight: 600;
+  fill: var(--muted-foreground);
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
-.visualization-label,
+.visualization-array-item .visualization-value {
+  fill: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
 .visualization-index {
   fill: var(--muted-foreground);
   font-size: 0.6875rem;
 }
 
-.visualization-marker {
-  fill: color-mix(in oklab, var(--accent-blue) 75%, white);
+.visualization-label,
+.visualization-node-id,
+.visualization-node-role,
+.visualization-structure-size,
+.visualization-edge-weight,
+.visualization-distance {
+  fill: var(--muted-foreground);
   font-size: 0.6875rem;
 }
 
-.visualization-compared .visualization-cell {
-  fill: color-mix(in oklab, var(--accent-red) 20%, var(--surface-2));
+.visualization-marker {
+  fill: color-mix(in oklab, var(--accent-blue) 72%, white);
+  font-size: 0.5625rem;
+}
+
+.visualization-structure-label,
+.visualization-empty-structure,
+.visualization-direction-label {
+  fill: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+}
+
+.visualization-structure-label {
+  text-anchor: start;
+  text-transform: uppercase;
+}
+
+.visualization-structure-frame {
+  fill: color-mix(in oklab, var(--surface) 30%, transparent);
+  stroke: var(--border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.visualization-matrix-cell .visualization-cell {
+  fill: color-mix(in oklab, var(--surface) 50%, transparent);
+  stroke: var(--border);
+}
+
+.visualization-matrix-cell.visualization-marked .visualization-cell,
+.visualization-hash-bucket.visualization-visited .visualization-cell {
+  fill: color-mix(in oklab, var(--accent-blue) 15%, transparent);
+  stroke: color-mix(in oklab, var(--accent-blue) 45%, transparent);
+}
+
+.visualization-matrix-cell.visualization-marked .visualization-value,
+.visualization-matrix-cell.visualization-compared .visualization-value,
+.visualization-hash-bucket.visualization-visited .visualization-value {
+  fill: var(--foreground);
+}
+
+.visualization-matrix-cell.visualization-compared .visualization-cell {
+  fill: color-mix(in oklab, var(--accent-red) 20%, transparent);
+  stroke: color-mix(in oklab, var(--accent-red) 70%, transparent);
+  filter: drop-shadow(
+    0 0 9px color-mix(in oklab, var(--accent-red) 70%, transparent)
+  );
+}
+
+.visualization-stack-background {
+  fill: color-mix(in oklab, var(--surface) 30%, transparent);
+}
+
+.visualization-stack-frame {
+  fill: none;
+}
+
+.visualization-stack-item .visualization-cell,
+.visualization-queue-item .visualization-cell,
+.visualization-list-node .visualization-node,
+.visualization-hash-entry .visualization-node {
+  fill: color-mix(in oklab, var(--accent-blue) 12%, transparent);
+  stroke: color-mix(in oklab, var(--accent-blue) 40%, transparent);
+}
+
+.visualization-stack-item.visualization-top .visualization-cell,
+.visualization-stack-item.visualization-peeked .visualization-cell,
+.visualization-queue-item.visualization-peeked .visualization-cell,
+.visualization-list-node.visualization-marked .visualization-node {
+  fill: color-mix(in oklab, var(--accent-red) 20%, transparent);
+  stroke: color-mix(in oklab, var(--accent-red) 70%, transparent);
+  filter: drop-shadow(
+    0 0 8px color-mix(in oklab, var(--accent-red) 70%, transparent)
+  );
+}
+
+.visualization-stack-item.visualization-top .visualization-value,
+.visualization-stack-item.visualization-peeked .visualization-value,
+.visualization-queue-item .visualization-value,
+.visualization-list-node .visualization-value,
+.visualization-hash-entry .visualization-value,
+.visualization-hash-entry.visualization-marked .visualization-value {
+  fill: var(--foreground);
+}
+
+.visualization-tree-node .visualization-node,
+.visualization-graph-node .visualization-node {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+
+.visualization-tree-node.visualization-visited .visualization-node,
+.visualization-tree-node.visualization-marked .visualization-node {
+  fill: color-mix(in oklab, var(--accent-blue) 18%, transparent);
+  stroke: var(--accent-blue);
+}
+
+.visualization-tree-node.visualization-compared .visualization-node {
+  fill: color-mix(in oklab, var(--accent-red) 25%, transparent);
   stroke: var(--accent-red);
 }
 
-.visualization-compared .visualization-node {
-  fill: color-mix(in oklab, var(--accent-red) 20%, var(--surface-2));
+.visualization-tree-node.visualization-visited .visualization-value,
+.visualization-tree-node.visualization-marked .visualization-value,
+.visualization-tree-node.visualization-compared .visualization-value,
+.visualization-graph-node .visualization-value {
+  fill: var(--foreground);
+}
+
+.visualization-graph-node.visualization-visited .visualization-node,
+.visualization-list-node.visualization-visited .visualization-node,
+.visualization-list-node.visualization-head .visualization-node {
+  fill: color-mix(in oklab, var(--visualization-green) 18%, transparent);
+  stroke: var(--visualization-green);
+}
+
+.visualization-graph-node.visualization-marked .visualization-node {
+  fill: color-mix(in oklab, var(--accent-red) 25%, transparent);
   stroke: var(--accent-red);
 }
 
-.visualization-marked .visualization-cell {
-  stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
+.visualization-tree-node .visualization-value,
+.visualization-graph-node .visualization-value {
+  font-size: 0.8125rem;
 }
 
-.visualization-marked .visualization-node {
-  stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
+.visualization-list-node.visualization-tail .visualization-node {
+  fill: color-mix(in oklab, var(--accent-blue) 18%, transparent);
+  stroke: var(--accent-blue);
 }
 
-.visualization-visited .visualization-cell,
-.visualization-visited .visualization-node {
-  fill: color-mix(in oklab, var(--accent-blue) 18%, var(--surface-2));
-  stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
+.visualization-list-node.visualization-marked .visualization-node {
+  fill: color-mix(in oklab, var(--accent-red) 20%, transparent);
+  stroke: color-mix(in oklab, var(--accent-red) 70%, transparent);
 }
 
-.visualization-head .visualization-node,
-.visualization-tail .visualization-node,
-.visualization-root .visualization-node {
-  stroke-width: 3;
+.visualization-head .visualization-node-role,
+.visualization-queue-front {
+  fill: var(--visualization-green);
+}
+
+.visualization-tail .visualization-node-role,
+.visualization-queue-rear {
+  fill: var(--accent-blue);
 }
 
 .visualization-list-connection--previous {
   stroke-dasharray: 5 4;
-  opacity: 0.8;
+  opacity: 0.72;
 }
 
-.visualization-peeked .visualization-cell {
-  fill: color-mix(in oklab, var(--accent-red) 18%, var(--surface-2));
-  stroke: var(--accent-red);
-}
-
-.visualization-top .visualization-cell {
-  stroke-width: 3;
-}
-
-.visualization-direction-label {
-  fill: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.visualization-edge-weight,
-.visualization-distance {
-  fill: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  text-anchor: middle;
+.visualization-graph-edge {
+  opacity: 0.6;
 }
 
 .visualization-visited-edge {
-  stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
-  stroke-width: 2.5;
+  stroke: var(--accent-blue);
+  stroke-width: 2;
+  opacity: 0.8;
 }
 
 .visualization-marked-edge {
   stroke: var(--accent-red);
-  stroke-width: 2.5;
+  stroke-width: 2;
+  opacity: 0.8;
+  filter: drop-shadow(
+    0 0 5px color-mix(in oklab, var(--accent-red) 65%, transparent)
+  );
+}
+
+.visualization-hash-entry.visualization-visited .visualization-node {
+  fill: color-mix(in oklab, var(--accent-blue) 15%, transparent);
+  stroke: color-mix(in oklab, var(--accent-blue) 45%, transparent);
+}
+
+.visualization-hash-entry.visualization-marked .visualization-node {
+  fill: color-mix(in oklab, var(--accent-red) 20%, transparent);
+  stroke: color-mix(in oklab, var(--accent-red) 70%, transparent);
+  filter: drop-shadow(
+    0 0 8px color-mix(in oklab, var(--accent-red) 70%, transparent)
+  );
+}
+
+.visualization-matrix-cell .visualization-value,
+.visualization-stack-item .visualization-value,
+.visualization-queue-item .visualization-value {
+  font-size: 0.875rem;
 }

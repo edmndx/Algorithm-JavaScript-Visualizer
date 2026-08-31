@@ -48,11 +48,15 @@ const arrayInitializationCommands: readonly TraceCommand[] = [
   { type: 'array.create', values: [8, 3, 5, 1, 4] },
 ];
 
-test('accepts an array at the visualization capacity and rejects the next item', async () => {
+test('keeps count limits and rejects arrays with excessive horizontal geometry', async () => {
   const { getVisualizationCapacityMessage } =
     await import('../src/visualization/visualizationLimits');
 
-  assert.equal(getVisualizationCapacityMessage(createArrayScene(256)), null);
+  assert.equal(getVisualizationCapacityMessage(createArrayScene(63)), null);
+  assert.match(
+    getVisualizationCapacityMessage(createArrayScene(64)) ?? '',
+    /readability limit of 63 items/,
+  );
   assert.match(
     getVisualizationCapacityMessage(createArrayScene(257)) ?? '',
     /256 items/,
@@ -455,6 +459,48 @@ test('applies independent matrix, stack, and queue capacity limits', async () =>
   );
   assert.match(
     getVisualizationCapacityMessage({
+      ...matrixScene,
+      values: [Array(54).fill(0) as number[]],
+    }) ?? '',
+    /53 columns/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...matrixScene,
+      values: Array.from({ length: 54 }, () => [0]),
+    }) ?? '',
+    /53 rows/,
+  );
+  assert.equal(
+    getVisualizationCapacityMessage({
+      ...stackScene,
+      values: Array(79).fill(0) as number[],
+    }),
+    null,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...stackScene,
+      values: Array(80).fill(0) as number[],
+    }) ?? '',
+    /readability limit of 79 items/,
+  );
+  assert.equal(
+    getVisualizationCapacityMessage({
+      ...queueScene,
+      values: Array(63).fill(0) as number[],
+    }),
+    null,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...queueScene,
+      values: Array(64).fill(0) as number[],
+    }) ?? '',
+    /readability limit of 63 items/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
       ...stackScene,
       values: Array(257).fill(0) as number[],
     }) ?? '',
@@ -548,6 +594,36 @@ test('applies linked-list and hash-table capacity limits without truncating', as
       })),
     }) ?? '',
     /512 entries/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...linkedListScene,
+      nodes: Array.from({ length: 21 }, (_, index) => ({
+        id: String(index),
+        value: index,
+        nextId: index === 20 ? null : String(index + 1),
+      })),
+    }) ?? '',
+    /readability limit of 20 nodes/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...hashTableScene,
+      bucketCount: 56,
+    }) ?? '',
+    /readability limit of 55 buckets/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...hashTableScene,
+      entries: Array.from({ length: 22 }, (_, index) => ({
+        id: String(index),
+        key: index,
+        value: index,
+        bucketIndex: 0,
+      })),
+    }) ?? '',
+    /readability limit of 21 entries per bucket/,
   );
 });
 
@@ -780,6 +856,18 @@ test('lays out a rootless forest and rejects an oversized tree', async () => {
       })),
     }) ?? '',
     /256 nodes/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...treeScene,
+      rootId: '0',
+      nodes: Array.from({ length: 40 }, (_, index) => ({
+        id: String(index),
+        value: index,
+        children: index === 39 ? [] : [String(index + 1)],
+      })),
+    }) ?? '',
+    /readability limit of 39 nodes/,
   );
 });
 
@@ -1037,5 +1125,35 @@ test('applies independent graph node and edge capacity limits', async () => {
       })),
     }) ?? '',
     /600 edges/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...circularGraphScene,
+      nodes: Array.from({ length: 81 }, (_, index) => ({ id: String(index) })),
+      edges: [],
+    }) ?? '',
+    /readability limit of 80 nodes/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...circularGraphScene,
+      edges: Array.from({ length: 12 }, (_, index) => ({
+        id: `parallel-${index}`,
+        from: 'a',
+        to: 'b',
+      })),
+    }) ?? '',
+    /readability limit of 11 parallel edges/,
+  );
+  assert.match(
+    getVisualizationCapacityMessage({
+      ...circularGraphScene,
+      edges: Array.from({ length: 9 }, (_, index) => ({
+        id: `loop-${index}`,
+        from: 'a',
+        to: 'a',
+      })),
+    }) ?? '',
+    /readability limit of 8 self-loops/,
   );
 });

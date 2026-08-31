@@ -1150,9 +1150,7 @@ function requireStructure<Structure extends TraceStructure>(
 /* Matrix helpers                                                              */
 /* -------------------------------------------------------------------------- */
 
-function cloneMatrix<Value>(
-  values: readonly (readonly Value[])[],
-): Value[][] {
+function cloneMatrix<Value>(values: readonly (readonly Value[])[]): Value[][] {
   return values.map((row) => [...row]);
 }
 
