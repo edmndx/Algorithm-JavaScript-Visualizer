@@ -1,9 +1,9 @@
 # Algorithm JavaScript Visualizer
 
-Algorithm JavaScript Visualizer is a local-first tool for visualizing JavaScript algorithms. It converts user-written JavaScript code into structured JSON algorithm states and renders those states as interactive D3.js and Canvas visualizations.
+Algorithm JavaScript Visualizer is a local-first tool for visualizing JavaScript algorithms. It instruments user-written JavaScript into semantic trace commands, reconstructs playback `SceneState`, and renders that state as D3.js-generated SVG.
 
 ```txt
-JavaScript code -> JSON algorithm states -> D3.js / Canvas visualization
+JavaScript -> instrumentation -> sandbox -> TraceCommand[] -> validation -> timeline -> SceneState -> D3.js + SVG
 ```
 
 The project was written manually by hand, without agentic coding, as practice for NVIM workflow, clean code patterns, TypeScript architecture, and algorithm visualization design.
@@ -35,13 +35,13 @@ The trace is validated, prepared for playback, and rendered step by step.
 - Validate code before execution.
 - Generate JSON-based visualization traces.
 - Import and export JSON trace files.
-- Build visualizations directly from JSON trace data.
-- Replay traces with play, pause, next, previous, reset, progress, and speed controls.
+- Render authoritative playback `SceneState` through structure-specific D3.js and SVG renderers.
+- Replay traces with play, pause, next, previous, reset, and progress controls.
 - Highlight the active code line during playback.
 - Display command explanations, console output, results, and errors.
-- Inspect visualizations with zoom, pan, fit/reset, hover, and focus interactions.
+- Fit responsive SVG visualizations to the panel through renderer-owned view boxes.
 
-Supported visualization structures include arrays, trees, graphs, matrices, and grids.
+Supported visualization structures include arrays, matrices, trees, graphs, stacks, queues, linked lists, and hash tables.
 
 ---
 
@@ -51,7 +51,7 @@ Supported visualization structures include arrays, trees, graphs, matrices, and 
 - React
 - TypeScript
 - D3.js
-- Canvas
+- SVG
 - Web Workers
 - Comlink
 - XState
@@ -71,14 +71,24 @@ React UI
 XState
   -> lab state, runner state, playback state
 
-Runner / Worker
-  -> code analysis, trace generation, validation, frame preparation
+Instrumentation / Sandbox / Runner
+  -> semantic trace generation and validation
 
-D3 + Canvas Renderer
-  -> layout, drawing, viewport control, object inspection
+Timeline / XState playback
+  -> authoritative SceneState reconstruction
+
+React visualization shell
+  -> lifecycle, scene metadata, playback controls
+
+D3 + SVG renderers
+  -> data joins, deterministic layout, geometry, bounded transitions
 ```
 
-React manages the interface, XState controls the application and playback flow, and Canvas renders the algorithm visual objects.
+React manages the interface and SVG lifecycle, XState controls playback, and D3 renders each authoritative `SceneState` without parsing source code, trace JSON, or console output.
+
+Sequential scene states carry deterministic internal item identities so D3 joins preserve elements across swaps, pushes, pops, enqueues, and dequeues. Array bars use signed geometry around a visible zero baseline, while fixed graph coordinates use uniform scaling and parallel edges use deterministic paths. Count limits and renderer readability limits prevent pathological SVG dimensions.
+
+The visualization tests execute the D3 renderers in an SVG-capable DOM. Catalog regression coverage runs every starter through instrumentation, trace validation, timeline reduction, and representative SVG rendering.
 
 ---
 
@@ -100,6 +110,13 @@ Build the project:
 
 ```bash
 npm run build
+```
+
+Run all tests, or only the visualization checks:
+
+```bash
+npm test
+npm run test:visualization
 ```
 
 Preview the production build:
