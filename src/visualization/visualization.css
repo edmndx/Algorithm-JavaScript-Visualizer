@@ -44,3 +44,19 @@
 .visualization-marked .visualization-cell {
   stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
 }
+
+.visualization-peeked .visualization-cell {
+  fill: color-mix(in oklab, var(--accent-red) 18%, var(--surface-2));
+  stroke: var(--accent-red);
+}
+
+.visualization-top .visualization-cell {
+  stroke-width: 3;
+}
+
+.visualization-direction-label {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+}

@@ -220,6 +220,7 @@ export function reduceTraceCommand(
       return {
         ...scene,
         values: cloneMatrix(command.values),
+        itemIds: createMatrixItemIds(command.values),
         comparedPositions: null,
         markers: {},
       };
@@ -257,11 +258,19 @@ export function reduceTraceCommand(
       );
 
       const values = cloneMatrix(scene.values);
+      const itemIds = cloneMatrix(scene.itemIds);
 
       const firstRow = values[firstPosition.row];
       const secondRow = values[secondPosition.row];
+      const firstIdRow = itemIds[firstPosition.row];
+      const secondIdRow = itemIds[secondPosition.row];
 
-      if (firstRow === undefined || secondRow === undefined) {
+      if (
+        firstRow === undefined ||
+        secondRow === undefined ||
+        firstIdRow === undefined ||
+        secondIdRow === undefined
+      ) {
         throw new SceneReducerError(
           'INDEX_OUT_OF_BOUNDS',
           `Cannot apply ${command.type} to the requested matrix positions.`,
@@ -271,8 +280,15 @@ export function reduceTraceCommand(
       const firstValue = firstRow[firstPosition.column];
 
       const secondValue = secondRow[secondPosition.column];
+      const firstItemId = firstIdRow[firstPosition.column];
+      const secondItemId = secondIdRow[secondPosition.column];
 
-      if (firstValue === undefined || secondValue === undefined) {
+      if (
+        firstValue === undefined ||
+        secondValue === undefined ||
+        firstItemId === undefined ||
+        secondItemId === undefined
+      ) {
         throw new SceneReducerError(
           'INDEX_OUT_OF_BOUNDS',
           `Cannot apply ${command.type} to the requested matrix positions.`,
@@ -281,10 +297,13 @@ export function reduceTraceCommand(
 
       firstRow[firstPosition.column] = secondValue;
       secondRow[secondPosition.column] = firstValue;
+      firstIdRow[firstPosition.column] = secondItemId;
+      secondIdRow[secondPosition.column] = firstItemId;
 
       return {
         ...scene,
         values,
+        itemIds,
       };
     }
 
@@ -681,6 +700,8 @@ export function reduceTraceCommand(
       return {
         ...scene,
         values: [...command.values],
+        itemIds: createItemIds('stack-item', command.values.length),
+        nextItemId: command.values.length,
         peekedIndex: null,
         markers: {},
       };
@@ -692,6 +713,8 @@ export function reduceTraceCommand(
       return {
         ...scene,
         values: [...scene.values, command.value],
+        itemIds: [...scene.itemIds, `stack-item-${scene.nextItemId}`],
+        nextItemId: scene.nextItemId + 1,
         peekedIndex: null,
       };
     }
@@ -709,6 +732,7 @@ export function reduceTraceCommand(
       return {
         ...scene,
         values: scene.values.slice(0, -1),
+        itemIds: scene.itemIds.slice(0, -1),
         peekedIndex: null,
         markers: removeIndicesAtOrAbove(scene.markers, scene.values.length - 1),
       };
@@ -748,6 +772,8 @@ export function reduceTraceCommand(
       return {
         ...scene,
         values: [...command.values],
+        itemIds: createItemIds('queue-item', command.values.length),
+        nextItemId: command.values.length,
         peekedIndex: null,
         markers: {},
       };
@@ -759,6 +785,8 @@ export function reduceTraceCommand(
       return {
         ...scene,
         values: [...scene.values, command.value],
+        itemIds: [...scene.itemIds, `queue-item-${scene.nextItemId}`],
+        nextItemId: scene.nextItemId + 1,
         peekedIndex: null,
       };
     }
@@ -776,6 +804,7 @@ export function reduceTraceCommand(
       return {
         ...scene,
         values: scene.values.slice(1),
+        itemIds: scene.itemIds.slice(1),
         peekedIndex: null,
         markers: shiftIndicesAfterRemoval(scene.markers, 0),
       };
@@ -1121,9 +1150,9 @@ function requireStructure<Structure extends TraceStructure>(
 /* Matrix helpers                                                              */
 /* -------------------------------------------------------------------------- */
 
-function cloneMatrix(
-  values: readonly (readonly (string | number)[])[],
-): (string | number)[][] {
+function cloneMatrix<Value>(
+  values: readonly (readonly Value[])[],
+): Value[][] {
   return values.map((row) => [...row]);
 }
 
@@ -1162,6 +1191,19 @@ function assertIndex(
 
 function createItemIds(prefix: string, count: number): readonly string[] {
   return Array.from({ length: count }, (_, index) => `${prefix}-${index}`);
+}
+
+function createMatrixItemIds(
+  values: readonly (readonly unknown[])[],
+): readonly (readonly string[])[] {
+  let itemIndex = 0;
+  return values.map((row) =>
+    row.map(() => {
+      const id = `matrix-item-${itemIndex}`;
+      itemIndex += 1;
+      return id;
+    }),
+  );
 }
 
 /* -------------------------------------------------------------------------- */
