@@ -34,7 +34,7 @@ import {
 } from './sourceContract';
 
 type QueueCall = {
-  readonly kind: 'enqueue' | 'dequeue';
+  readonly kind: 'enqueue' | 'dequeue' | 'dequeue-back';
   readonly call: CallExpression;
   readonly member: MemberExpression;
   readonly line: number;
@@ -95,6 +95,11 @@ export function instrumentQueue(
   )
     ? allocateIdentifier()
     : null;
+  const dequeueBackHelper = candidate.operations.some(
+    ({ kind }) => kind === 'dequeue-back',
+  )
+    ? allocateIdentifier()
+    : null;
   const cursorDequeueHelper = candidate.operations.some(
     ({ kind }) => kind === 'cursor-dequeue',
   )
@@ -108,6 +113,7 @@ export function instrumentQueue(
     isTraceValue,
     enqueueHelper,
     dequeueHelper,
+    dequeueBackHelper,
     cursorDequeueHelper,
     peekHelper,
   );
@@ -120,6 +126,7 @@ export function instrumentQueue(
       candidate.root,
       enqueueHelper,
       dequeueHelper,
+      dequeueBackHelper,
       cursorDequeueHelper,
       peekHelper,
     );
@@ -155,6 +162,7 @@ function renderQueueHelpers(
   isTraceValue: string,
   enqueue: string | null,
   dequeue: string | null,
+  dequeueBack: string | null,
   cursorDequeue: string | null,
   peek: string | null,
 ): string {
@@ -168,6 +176,9 @@ function renderQueueHelpers(
     (dequeue === null
       ? ''
       : `const ${dequeue} = (method, line) => { const value = method(); if (${isTraceValue}(value)) trace.dequeue({ source: { line } }); return value; };\n`) +
+    (dequeueBack === null
+      ? ''
+      : `const ${dequeueBack} = (method, line) => { const value = method(); if (${isTraceValue}(value)) trace.dequeueBack({ source: { line } }); return value; };\n`) +
     (cursorDequeue === null
       ? ''
       : `const ${cursorDequeue} = (values, index, line) => { const value = values[index]; if (${isTraceValue}(value)) trace.dequeue({ source: { line } }); return value; };\n`) +
@@ -213,8 +224,13 @@ function analyzeQueue(
   if (
     !operations.some(
       ({ kind }) =>
-        kind === 'dequeue' || kind === 'cursor-dequeue' || kind === 'peek',
+        kind === 'dequeue' ||
+        kind === 'dequeue-back' ||
+        kind === 'cursor-dequeue' ||
+        kind === 'peek',
     ) ||
+    (operations.some(({ kind }) => kind === 'cursor-dequeue') &&
+      operations.some(({ kind }) => kind === 'dequeue-back')) ||
     operations.some((operation) =>
       operation.kind === 'peek' || operation.kind === 'cursor-dequeue'
         ? operation.member.start < declaration.end
@@ -254,8 +270,14 @@ function matchQueueCall(node: AnyNode, root: string): QueueCall | null {
     }
   }
 
-  return method === 'shift' && node.arguments.length === 0
-    ? { kind: 'dequeue', call: node, member: node.callee, line }
+  if (node.arguments.length !== 0) return null;
+
+  if (method === 'shift') {
+    return { kind: 'dequeue', call: node, member: node.callee, line };
+  }
+
+  return method === 'pop'
+    ? { kind: 'dequeue-back', call: node, member: node.callee, line }
     : null;
 }
 
@@ -527,6 +549,7 @@ function queueOperationReplacement(
   root: string,
   enqueueHelper: string | null,
   dequeueHelper: string | null,
+  dequeueBackHelper: string | null,
   cursorDequeueHelper: string | null,
   peekHelper: string | null,
 ): string | null {
@@ -539,6 +562,10 @@ function queueOperationReplacement(
       return dequeueHelper === null
         ? null
         : `${dequeueHelper}(${root}.shift.bind(${root}), ${operation.line})`;
+    case 'dequeue-back':
+      return dequeueBackHelper === null
+        ? null
+        : `${dequeueBackHelper}(${root}.pop.bind(${root}), ${operation.line})`;
     case 'cursor-dequeue':
       return cursorDequeueHelper === null
         ? null

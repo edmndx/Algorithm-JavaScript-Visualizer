@@ -208,15 +208,6 @@ export const renderLinkedList: D3RenderFunction<LinkedListSceneState> = (
     .join('g')
     .attr('class', 'visualization-linked-list');
 
-  root
-    .selectAll<SVGTextElement, null>('text.visualization-empty-structure')
-    .data(positionedNodes.length === 0 ? [null] : [])
-    .join('text')
-    .attr('class', 'visualization-empty-structure')
-    .attr('x', width / 2)
-    .attr('y', VIEW_HEIGHT / 2)
-    .text('EMPTY LIST');
-
   const connectionPaths = root
     .selectAll<SVGPathElement, LinkedListConnection>(
       'path.visualization-list-connection',

@@ -810,6 +810,27 @@ export function reduceTraceCommand(
       };
     }
 
+    case 'queue.dequeueBack': {
+      requireStructure(scene, 'queue', command.type);
+
+      if (scene.values.length === 0) {
+        throw new SceneReducerError(
+          'QUEUE_UNDERFLOW',
+          'Cannot dequeue from an empty queue.',
+        );
+      }
+
+      const removedIndex = scene.values.length - 1;
+
+      return {
+        ...scene,
+        values: scene.values.slice(0, -1),
+        itemIds: scene.itemIds.slice(0, -1),
+        peekedIndex: null,
+        markers: shiftIndicesAfterRemoval(scene.markers, removedIndex),
+      };
+    }
+
     case 'queue.peek': {
       requireStructure(scene, 'queue', command.type);
 

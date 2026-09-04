@@ -200,10 +200,7 @@ test('keeps only structural labels inside sequential and keyed scenes', async ()
     stackSvg.querySelector('.visualization-stack-size') === null,
     true,
   );
-  assert.equal(
-    requiredElement(stackSvg, '.visualization-stack-top').textContent,
-    'TOP',
-  );
+  assert.equal(stackSvg.querySelector('.visualization-stack-top'), null);
 
   const listSvg = createSvg();
   renderLinkedList(listSvg, {
@@ -249,6 +246,54 @@ test('keeps only structural labels inside sequential and keyed scenes', async ()
     hashSvg.querySelectorAll('.visualization-hash-bucket').length,
     2,
   );
+});
+
+test('does not render empty-state text inside structure diagrams', () => {
+  const scenes: readonly SceneState[] = [
+    createInitializedScene('array'),
+    createInitializedScene('matrix'),
+    createInitializedScene('stack'),
+    createInitializedScene('queue'),
+    createInitializedScene('linked-list'),
+    createInitializedScene('hash-table'),
+    createInitializedScene('tree'),
+    createInitializedScene('graph'),
+  ];
+
+  for (const scene of scenes) {
+    const svg = createSvg();
+    switch (scene.structure) {
+      case null:
+        throw new Error('Expected an initialized structure scene.');
+      case 'array':
+        renderArray(svg, scene);
+        break;
+      case 'matrix':
+        renderMatrix(svg, scene);
+        break;
+      case 'stack':
+        renderStack(svg, scene);
+        break;
+      case 'queue':
+        renderQueue(svg, scene);
+        break;
+      case 'linked-list':
+        renderLinkedList(svg, scene);
+        break;
+      case 'hash-table':
+        renderHashTable(svg, scene);
+        break;
+      case 'tree':
+        renderTree(svg, scene);
+        break;
+      case 'graph':
+        renderGraph(svg, scene);
+        break;
+    }
+
+    assert.equal(svg.querySelector('.visualization-empty-structure'), null);
+    assert.doesNotMatch(svg.textContent ?? '', /EMPTY/);
+  }
 });
 
 test('renders signed array bars around a visible zero baseline', async () => {

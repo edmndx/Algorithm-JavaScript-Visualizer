@@ -90,16 +90,6 @@ export const renderQueue: D3RenderFunction<QueueSceneState> = (svg, scene) => {
     )
     .text((direction) => (direction === 'front' ? 'HEAD' : 'TAIL'));
 
-  root
-    .selectAll<SVGTextElement, null>('text.visualization-empty-structure')
-    .data(items.length === 0 ? [null] : [])
-    .join('text')
-    .attr('class', 'visualization-empty-structure')
-    .attr('x', contentWidth / 2)
-    .attr('y', ITEM_HEIGHT / 2)
-    .attr('dy', '0.35em')
-    .text('EMPTY');
-
   const groups = root
     .selectAll<SVGGElement, QueueItemDatum>('g.visualization-queue-item')
     .data(items, (item) => item.id)

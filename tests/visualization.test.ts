@@ -7,18 +7,24 @@ import { createActor } from 'xstate';
 
 import { playbackMachine } from '../src/playback/playbackMachine';
 import { buildTimeline, getPlaybackFrame } from '../src/playback/timeline';
-import type { TraceCommand } from '../src/protocol';
-import type {
-  ArraySceneState,
-  EmptySceneState,
-  GraphSceneState,
-  HashTableSceneState,
-  LinkedListSceneState,
-  MatrixSceneState,
-  QueueSceneState,
-  SceneState,
-  StackSceneState,
-  TreeSceneState,
+import {
+  traceCommandSchema,
+  validateTraceSemantics,
+  type TraceCommand,
+} from '../src/protocol';
+import {
+  reduceTraceCommand,
+  SceneReducerError,
+  type ArraySceneState,
+  type EmptySceneState,
+  type GraphSceneState,
+  type HashTableSceneState,
+  type LinkedListSceneState,
+  type MatrixSceneState,
+  type QueueSceneState,
+  type SceneState,
+  type StackSceneState,
+  type TreeSceneState,
 } from '../src/scene';
 
 const emptyScene: EmptySceneState = {
@@ -439,6 +445,73 @@ test('queue dequeue removes the front identity and moves the survivors', () => {
   ]);
 });
 
+test('queue dequeueBack removes the final identity and clears transient state', () => {
+  const result = buildTimeline([
+    { type: 'scene.init', structure: 'queue' },
+    { type: 'queue.create', values: [0, 1, 2] },
+    { type: 'queue.mark', indices: [0, 2], marker: 'candidate' },
+    { type: 'queue.peek' },
+    { type: 'queue.dequeueBack' },
+  ]);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+
+  const dequeued = getPlaybackFrame(result.timeline, 3).scene;
+  assert.equal(dequeued.structure, 'queue');
+  if (dequeued.structure !== 'queue') return;
+
+  assert.deepEqual(dequeued.values, [0, 1]);
+  assert.deepEqual(dequeued.itemIds, ['queue-item-0', 'queue-item-1']);
+  assert.equal(dequeued.peekedIndex, null);
+  assert.deepEqual(dequeued.markers.candidate, [0]);
+});
+
+test('queue dequeueBack uses strict protocol validation', () => {
+  assert.equal(
+    traceCommandSchema.safeParse({ type: 'queue.dequeueBack' }).success,
+    true,
+  );
+  assert.equal(
+    traceCommandSchema.safeParse({
+      type: 'queue.dequeueBack',
+      value: 2,
+    }).success,
+    false,
+  );
+});
+
+test('queue dequeueBack reports semantic and reducer underflow', () => {
+  const commands = [
+    { type: 'scene.init', structure: 'queue' },
+    { type: 'queue.create', values: [] },
+    { type: 'queue.dequeueBack' },
+  ] as const satisfies readonly TraceCommand[];
+  const validation = validateTraceSemantics(commands);
+
+  assert.equal(validation.ok, false);
+  if (validation.ok) return;
+  assert.equal(validation.issues[0]?.code, 'QUEUE_UNDERFLOW');
+
+  const emptyQueue: QueueSceneState = {
+    structure: 'queue',
+    title: 'Queue',
+    message: null,
+    values: [],
+    itemIds: [],
+    nextItemId: 0,
+    peekedIndex: null,
+    markers: {},
+  };
+  assert.throws(
+    () =>
+      reduceTraceCommand(emptyQueue, {
+        type: 'queue.dequeueBack',
+      }),
+    (error: unknown) =>
+      error instanceof SceneReducerError && error.code === 'QUEUE_UNDERFLOW',
+  );
+});
+
 test('applies independent matrix, stack, and queue capacity limits', async () => {
   const { getVisualizationCapacityMessage } =
     await import('../src/visualization/visualizationLimits');
@@ -529,6 +602,126 @@ const linkedListScene: LinkedListSceneState = {
   visitedNodeIds: [],
   markers: {},
 };
+
+test('accepts exactly two disjoint singly linked inputs when the final list is connected', () => {
+  const result = buildTimeline([
+    { type: 'scene.init', structure: 'linked-list' },
+    {
+      type: 'linked-list.create',
+      kind: 'singly',
+      headId: 'a',
+      tailId: 'b',
+      nodes: [
+        { id: 'a', value: 1, nextId: 'b' },
+        { id: 'b', value: 3, nextId: null },
+        { id: 'c', value: 2, nextId: 'd' },
+        { id: 'd', value: 4, nextId: null },
+      ],
+    },
+    { type: 'linked-list.setNext', nodeId: 'a', nextId: 'c' },
+    { type: 'linked-list.setNext', nodeId: 'c', nextId: 'b' },
+    { type: 'linked-list.setNext', nodeId: 'b', nextId: 'd' },
+    { type: 'linked-list.setTail', nodeId: 'd' },
+  ]);
+
+  assert.equal(result.ok, true);
+});
+
+test('rejects three disjoint linked-list components at initialization', () => {
+  const validation = validateTraceSemantics([
+    { type: 'scene.init', structure: 'linked-list' },
+    {
+      type: 'linked-list.create',
+      kind: 'singly',
+      headId: 'a',
+      tailId: 'a',
+      nodes: [
+        { id: 'a', value: 1, nextId: null },
+        { id: 'b', value: 2, nextId: null },
+        { id: 'c', value: 3, nextId: null },
+      ],
+    },
+    { type: 'linked-list.setNext', nodeId: 'a', nextId: 'b' },
+    { type: 'linked-list.setNext', nodeId: 'b', nextId: 'c' },
+    { type: 'linked-list.setTail', nodeId: 'c' },
+  ]);
+
+  assert.equal(validation.ok, false);
+  if (validation.ok) return;
+  assert.equal(validation.issues[0]?.code, 'LINKED_LIST_INVALID_TOPOLOGY');
+  assert.equal(validation.issues[0]?.commandIndex, 1);
+});
+
+test('rejects a cyclic auxiliary linked-list component at initialization', () => {
+  const validation = validateTraceSemantics([
+    { type: 'scene.init', structure: 'linked-list' },
+    {
+      type: 'linked-list.create',
+      kind: 'singly',
+      headId: 'a',
+      tailId: 'a',
+      nodes: [
+        { id: 'a', value: 1, nextId: null },
+        { id: 'b', value: 2, nextId: 'c' },
+        { id: 'c', value: 3, nextId: 'b' },
+      ],
+    },
+    { type: 'linked-list.setNext', nodeId: 'c', nextId: null },
+    { type: 'linked-list.setNext', nodeId: 'a', nextId: 'b' },
+    { type: 'linked-list.setTail', nodeId: 'c' },
+  ]);
+
+  assert.equal(validation.ok, false);
+  if (validation.ok) return;
+  assert.equal(validation.issues[0]?.code, 'LINKED_LIST_INVALID_TOPOLOGY');
+  assert.equal(validation.issues[0]?.commandIndex, 1);
+});
+
+test('rejects an auxiliary linked-list component that joins the primary tail', () => {
+  const validation = validateTraceSemantics([
+    { type: 'scene.init', structure: 'linked-list' },
+    {
+      type: 'linked-list.create',
+      kind: 'singly',
+      headId: 'a',
+      tailId: 'b',
+      nodes: [
+        { id: 'a', value: 1, nextId: 'b' },
+        { id: 'b', value: 3, nextId: null },
+        { id: 'c', value: 2, nextId: 'b' },
+      ],
+    },
+    { type: 'linked-list.setNext', nodeId: 'a', nextId: 'c' },
+  ]);
+
+  assert.equal(validation.ok, false);
+  if (validation.ok) return;
+  assert.equal(validation.issues[0]?.code, 'LINKED_LIST_INVALID_TOPOLOGY');
+  assert.equal(validation.issues[0]?.commandIndex, 1);
+});
+
+test('rejects linked-list components that remain disconnected at the final command', () => {
+  const validation = validateTraceSemantics([
+    { type: 'scene.init', structure: 'linked-list' },
+    {
+      type: 'linked-list.create',
+      kind: 'singly',
+      headId: 'a',
+      tailId: 'b',
+      nodes: [
+        { id: 'a', value: 1, nextId: 'b' },
+        { id: 'b', value: 3, nextId: null },
+        { id: 'c', value: 2, nextId: 'd' },
+        { id: 'd', value: 4, nextId: null },
+      ],
+    },
+  ]);
+
+  assert.equal(validation.ok, false);
+  if (validation.ok) return;
+  assert.equal(validation.issues[0]?.code, 'LINKED_LIST_INVALID_TOPOLOGY');
+  assert.equal(validation.issues[0]?.commandIndex, 1);
+});
 
 const hashTableScene: HashTableSceneState = {
   structure: 'hash-table',

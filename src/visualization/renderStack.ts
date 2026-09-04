@@ -115,24 +115,6 @@ export const renderStack: D3RenderFunction<StackSceneState> = (svg, scene) => {
       ].join(' '),
     );
 
-  root
-    .selectAll<SVGTextElement, null>('text.visualization-stack-top')
-    .data([null])
-    .join('text')
-    .attr('class', 'visualization-direction-label visualization-stack-top')
-    .attr('x', ITEM_WIDTH / 2)
-    .attr('y', topItemY - 18)
-    .text('TOP');
-
-  root
-    .selectAll<SVGTextElement, null>('text.visualization-empty-structure')
-    .data(items.length === 0 ? [null] : [])
-    .join('text')
-    .attr('class', 'visualization-empty-structure')
-    .attr('x', ITEM_WIDTH / 2)
-    .attr('y', -BASE_ITEM_Y + VIEW_HEIGHT / 2)
-    .text('EMPTY');
-
   const groups = root
     .selectAll<SVGGElement, StackItemDatum>('g.visualization-stack-item')
     .data(items, (item) => item.id)

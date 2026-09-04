@@ -131,15 +131,6 @@ export const renderArray: D3RenderFunction<ArraySceneState> = (svg, scene) => {
     .attr('y1', baselineY)
     .attr('y2', baselineY);
 
-  root
-    .selectAll<SVGTextElement, null>('text.visualization-empty-structure')
-    .data(data.length === 0 ? [null] : [])
-    .join('text')
-    .attr('class', 'visualization-empty-structure')
-    .attr('x', width / 2)
-    .attr('y', height / 2)
-    .text('EMPTY ARRAY');
-
   const items = root
     .selectAll<SVGGElement, ArrayItemDatum>('g.visualization-array-item')
     .data(data, (datum) => datum.id)

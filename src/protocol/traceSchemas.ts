@@ -612,6 +612,14 @@ export const queueDequeueCommandSchema = z
   })
   .strict();
 
+export const queueDequeueBackCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+
+    type: z.literal('queue.dequeueBack'),
+  })
+  .strict();
+
 export const queuePeekCommandSchema = z
   .object({
     ...traceCommandBaseShape,
@@ -868,6 +876,7 @@ export const traceCommandSchema = z.discriminatedUnion('type', [
   queueCreateCommandSchema,
   queueEnqueueCommandSchema,
   queueDequeueCommandSchema,
+  queueDequeueBackCommandSchema,
   queuePeekCommandSchema,
   queueMarkCommandSchema,
 

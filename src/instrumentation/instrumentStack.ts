@@ -341,7 +341,8 @@ function findStackDeclaration(
 ): VariableDeclaration | null {
   const initializer = contract.declaration.declarations[0]?.init;
   return initializer?.type === 'ArrayExpression' &&
-    initializer.elements.length === 0
+    initializer.elements.length <= TRACE_LIMITS.collectionItems &&
+    initializer.elements.every((element) => staticTraceValue(element) !== null)
     ? contract.declaration
     : null;
 }

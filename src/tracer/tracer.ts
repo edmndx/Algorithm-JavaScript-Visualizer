@@ -199,6 +199,7 @@ export function createTracer() {
     }),
     enqueue: operation('enqueue', { queue: 'queue.enqueue' }),
     dequeue: operation('dequeue', { queue: 'queue.dequeue' }),
+    dequeueBack: operation('dequeueBack', { queue: 'queue.dequeueBack' }),
 
     setHead: operation('setHead', { 'linked-list': 'linked-list.setHead' }),
     setTail: operation('setTail', { 'linked-list': 'linked-list.setTail' }),
