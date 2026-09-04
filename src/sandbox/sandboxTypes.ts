@@ -1,4 +1,5 @@
 import type { InstrumentableStructure } from '../instrumentation/instrumentationTypes';
+import type { SourceContractDiagnostic } from '../instrumentation/sourceContract';
 import type { RunnerResult } from '../runner/runner';
 
 export type SandboxHealth = {
@@ -17,6 +18,10 @@ export type SandboxRunResult =
   | {
       readonly status: 'execution-failure';
       readonly result: Extract<RunnerResult, { readonly ok: false }>;
+    }
+  | {
+      readonly status: 'source-contract-error';
+      readonly diagnostic: SourceContractDiagnostic;
     };
 
 export type SandboxWorkerApi = {

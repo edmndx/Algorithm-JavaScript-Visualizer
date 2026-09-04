@@ -25,6 +25,13 @@ export async function runSandbox(
 
   const instrumentation = instrumentJavaScript(validation.source, structure);
 
+  if (instrumentation.status === 'source-contract-error') {
+    return {
+      status: 'source-contract-error',
+      diagnostic: instrumentation.diagnostic,
+    };
+  }
+
   return toSandboxResult(
     instrumentation.status,
     await runValidatedCode(instrumentation.source, {
