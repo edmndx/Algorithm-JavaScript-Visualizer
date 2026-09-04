@@ -20,6 +20,7 @@ import {
   walkAst,
 } from './ast';
 import { applySourceEdits, lineIndentation, type SourceEdit } from './edits';
+import type { ValidVisualizationSource } from './sourceContract';
 
 type StaticTreeNode = {
   readonly id: string;
@@ -49,10 +50,11 @@ type TreeCandidate = {
 export function instrumentTree(
   source: string,
   program: Program,
+  contract: ValidVisualizationSource,
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const candidates = findTreeDeclarations(program)
+  const candidates = findTreeDeclarations(program, contract.identifier)
     .map(({ declaration, nodes }) => analyzeTree(program, declaration, nodes))
     .filter((candidate): candidate is TreeCandidate => candidate !== null);
 
@@ -95,7 +97,10 @@ export function instrumentTree(
   return applySourceEdits(source, edits);
 }
 
-function findTreeDeclarations(program: Program): Array<{
+function findTreeDeclarations(
+  program: Program,
+  identifier: string,
+): Array<{
   readonly declaration: VariableDeclaration;
   readonly nodes: readonly StaticTreeNode[];
 }> {
@@ -111,6 +116,7 @@ function findTreeDeclarations(program: Program): Array<{
     const declarator = statement.declarations[0];
     if (
       declarator?.id.type !== 'Identifier' ||
+      declarator.id.name !== identifier ||
       declarator.init?.type !== 'ObjectExpression'
     ) {
       return [];

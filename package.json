@@ -15,7 +15,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "tsx --test tests/runnerConsole.test.ts tests/traceConsole.test.ts tests/traceFile.test.ts tests/visualization.test.ts tests/visualizationDom.test.ts tests/catalogVisualization.test.ts",
+    "test": "tsx --test tests/runnerConsole.test.ts tests/traceConsole.test.ts tests/traceFile.test.ts tests/sourceContract.test.ts tests/visualization.test.ts tests/visualizationDom.test.ts tests/catalogVisualization.test.ts",
     "test:visualization": "tsx --test tests/visualization.test.ts tests/visualizationDom.test.ts tests/catalogVisualization.test.ts",
     "preview": "vite preview --host 127.0.0.1"
   },

@@ -28,6 +28,12 @@ import {
   lineIndentation,
   type SourceEdit,
 } from './edits';
+import {
+  hasSafePrimaryRootUsage,
+  primaryOperationBindings,
+  type PrimaryOperationBinding,
+  type ValidVisualizationSource,
+} from './sourceContract';
 
 type MatrixCell = {
   readonly row: Expression;
@@ -67,6 +73,7 @@ type MatrixOperation = MatrixSwap | MatrixComparison | MatrixSet;
 type MatrixCandidate = {
   readonly declaration: VariableDeclaration;
   readonly declarationLine: number;
+  readonly initialRoot: string;
   readonly root: string;
   readonly operations: readonly MatrixOperation[];
 };
@@ -77,11 +84,15 @@ const ARITHMETIC_OPERATORS = new Set(['+', '-', '*', '/', '%', '**']);
 export function instrumentMatrix(
   source: string,
   program: Program,
+  contract: ValidVisualizationSource,
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const candidates = findMatrixDeclarations(program)
-    .map((declaration) => analyzeMatrix(program, declaration))
+  const declaration = findMatrixDeclaration(contract);
+  if (declaration === null) return null;
+
+  const candidates = primaryOperationBindings(contract)
+    .map((binding) => analyzeMatrix(contract, declaration, binding))
     .filter((candidate): candidate is MatrixCandidate => candidate !== null);
 
   if (candidates.length !== 1) return null;
@@ -93,7 +104,7 @@ export function instrumentMatrix(
     {
       start: candidate.declaration.end,
       end: candidate.declaration.end,
-      text: `;\ntrace.initialize({ structure: 'matrix', source: { line: ${candidate.declarationLine} } });\ntrace.createMatrix({ values: ${candidate.root}, source: { line: ${candidate.declarationLine} } });\n`,
+      text: `;\ntrace.initialize({ structure: 'matrix', source: { line: ${candidate.declarationLine} } });\ntrace.createMatrix({ values: ${candidate.initialRoot}, source: { line: ${candidate.declarationLine} } });\n`,
     },
     ...candidate.operations.map((operation) =>
       operationEdit(source, operation, candidate.root),
@@ -104,45 +115,53 @@ export function instrumentMatrix(
 }
 
 function analyzeMatrix(
-  program: Program,
+  contract: ValidVisualizationSource,
   declaration: VariableDeclaration,
+  binding: PrimaryOperationBinding,
 ): MatrixCandidate | null {
-  const declarator = declaration.declarations[0];
-  if (declarator?.id.type !== 'Identifier') return null;
-
-  const root = declarator.id.name;
+  const root = binding.root;
   const declarationLine = sourceLine(declaration);
   if (declarationLine === null) return null;
 
   const operations: MatrixOperation[] = [];
 
-  walkAst(program, (node, parent, grandparent, insideUnsupportedScope) => {
-    if (insideUnsupportedScope) return;
+  walkAst(
+    binding.scope.body,
+    (node, parent, grandparent, insideUnsupportedScope) => {
+      if (insideUnsupportedScope) return;
 
-    const swap = matchMatrixSwap(node, parent, grandparent, root);
-    if (swap !== null) {
-      operations.push(swap);
-      return;
-    }
+      const swap = matchMatrixSwap(node, parent, grandparent, root);
+      if (swap !== null) {
+        operations.push(swap);
+        return;
+      }
 
-    const comparison = matchMatrixComparison(node, parent, root);
-    if (comparison !== null) operations.push(comparison);
+      const comparison = matchMatrixComparison(node, parent, root);
+      if (comparison !== null) operations.push(comparison);
 
-    const set = matchMatrixSet(node, parent, grandparent, root);
-    if (set !== null) operations.push(set);
-  });
+      const set = matchMatrixSet(node, parent, grandparent, root);
+      if (set !== null) operations.push(set);
+    },
+  );
 
   if (
     operations.length === 0 ||
     operations.some(
       (operation) => operation.statement.start < declaration.end,
     ) ||
-    hasUnsafeMatrixUsage(program, declaration, operations, root)
+    !hasSafePrimaryRootUsage(contract, binding) ||
+    hasUnsafeMatrixUsage(binding.scope.body, declaration, operations, root)
   ) {
     return null;
   }
 
-  return { declaration, declarationLine, root, operations };
+  return {
+    declaration,
+    declarationLine,
+    initialRoot: contract.identifier,
+    root,
+    operations,
+  };
 }
 
 function matchMatrixSwap(
@@ -256,15 +275,12 @@ function matchMatrixSet(
   };
 }
 
-function findMatrixDeclarations(program: Program): VariableDeclaration[] {
-  return program.body.filter(
-    (statement): statement is VariableDeclaration =>
-      statement.type === 'VariableDeclaration' &&
-      statement.kind === 'const' &&
-      statement.declarations.length === 1 &&
-      statement.declarations[0]?.id.type === 'Identifier' &&
-      isSupportedInitialMatrix(statement.declarations[0].init),
-  );
+function findMatrixDeclaration(
+  contract: ValidVisualizationSource,
+): VariableDeclaration | null {
+  return isSupportedInitialMatrix(contract.declaration.declarations[0]?.init)
+    ? contract.declaration
+    : null;
 }
 
 function isSupportedInitialMatrix(
@@ -364,7 +380,7 @@ function isMatrixCellRead(expression: Expression): boolean {
 }
 
 function hasUnsafeMatrixUsage(
-  program: Program,
+  rootNode: AnyNode,
   declaration: VariableDeclaration,
   operations: readonly MatrixOperation[],
   root: string,
@@ -378,7 +394,7 @@ function hasUnsafeMatrixUsage(
   );
   let unsafe = false;
 
-  walkAst(program, (node, parent, grandparent) => {
+  walkAst(rootNode, (node, parent, grandparent) => {
     if (
       isRootedInvocation(node, root) ||
       (isRootWrite(node, root) && !supportedMutations.has(node)) ||

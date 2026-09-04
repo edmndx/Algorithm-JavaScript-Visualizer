@@ -12,10 +12,8 @@ import {
 import { TRACE_LIMITS } from '../protocol';
 import {
   createIdentifierAllocator,
-  directInstrumentationScopes,
   hasUnsafeInstrumentationSyntax,
   isDirectConsoleArgument,
-  isCalledExactlyOnce,
   isDirectWriteTarget,
   isDirectRootMethodCall,
   isIdentifierReference,
@@ -28,6 +26,12 @@ import {
   type DirectInstrumentationScope,
 } from './ast';
 import { applySourceEdits, type SourceEdit } from './edits';
+import {
+  hasSafePrimaryRootUsage,
+  primaryOperationBindings,
+  type PrimaryOperationBinding,
+  type ValidVisualizationSource,
+} from './sourceContract';
 
 type QueueCall = {
   readonly kind: 'enqueue' | 'dequeue';
@@ -55,6 +59,7 @@ type QueueOperation = QueueCall | QueuePeek | QueueCursorDequeue;
 type QueueCandidate = {
   readonly declaration: VariableDeclaration;
   readonly declarationLine: number;
+  readonly initialRoot: string;
   readonly root: string;
   readonly operations: readonly QueueOperation[];
 };
@@ -62,11 +67,15 @@ type QueueCandidate = {
 export function instrumentQueue(
   source: string,
   program: Program,
+  contract: ValidVisualizationSource,
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const candidates = findQueueDeclarations(program)
-    .map(({ declaration, scope }) => analyzeQueue(program, declaration, scope))
+  const declaration = findQueueDeclaration(contract);
+  if (declaration === null) return null;
+
+  const candidates = primaryOperationBindings(contract)
+    .map((binding) => analyzeQueue(contract, declaration, binding))
     .filter((candidate): candidate is QueueCandidate => candidate !== null);
 
   if (candidates.length !== 1) return null;
@@ -151,7 +160,7 @@ function renderQueueHelpers(
 ): string {
   return (
     `;\ntrace.initialize({ structure: 'queue', source: { line: ${candidate.declarationLine} } });\n` +
-    `trace.createQueue({ values: ${candidate.root}, source: { line: ${candidate.declarationLine} } });\n` +
+    `trace.createQueue({ values: ${candidate.initialRoot}, source: { line: ${candidate.declarationLine} } });\n` +
     `const ${isTraceValue} = (value) => typeof value === 'string' ? value.length <= ${TRACE_LIMITS.stringLength} : typeof value === 'number' && value - value === 0;\n` +
     (enqueue === null
       ? ''
@@ -161,50 +170,45 @@ function renderQueueHelpers(
       : `const ${dequeue} = (method, line) => { const value = method(); if (${isTraceValue}(value)) trace.dequeue({ source: { line } }); return value; };\n`) +
     (cursorDequeue === null
       ? ''
-      : `const ${cursorDequeue} = (index, line) => { const value = ${candidate.root}[index]; if (${isTraceValue}(value)) trace.dequeue({ source: { line } }); return value; };\n`) +
+      : `const ${cursorDequeue} = (values, index, line) => { const value = values[index]; if (${isTraceValue}(value)) trace.dequeue({ source: { line } }); return value; };\n`) +
     (peek === null
       ? ''
-      : `const ${peek} = (line) => { const value = ${candidate.root}[0]; if (${isTraceValue}(value)) trace.peek({ source: { line } }); return value; };\n`)
+      : `const ${peek} = (values, line) => { const value = values[0]; if (${isTraceValue}(value)) trace.peek({ source: { line } }); return value; };\n`)
   );
 }
 
 function analyzeQueue(
-  program: Program,
+  contract: ValidVisualizationSource,
   declaration: VariableDeclaration,
-  scope: DirectInstrumentationScope,
+  binding: PrimaryOperationBinding,
 ): QueueCandidate | null {
-  const declarator = declaration.declarations[0];
-  if (declarator?.id.type !== 'Identifier') return null;
-
-  const root = declarator.id.name;
+  const root = binding.root;
   const declarationLine = sourceLine(declaration);
-  if (
-    declarationLine === null ||
-    (scope.owner !== null && !isCalledExactlyOnce(program, scope.owner))
-  ) {
-    return null;
-  }
+  if (declarationLine === null) return null;
 
   const operations: QueueOperation[] = [];
 
-  walkAst(scope.body, (node, parent, _grandparent, insideUnsupportedScope) => {
-    if (insideUnsupportedScope) return;
+  walkAst(
+    binding.scope.body,
+    (node, parent, _grandparent, insideUnsupportedScope) => {
+      if (insideUnsupportedScope) return;
 
-    const cursorDequeue = matchQueueCursorDequeue(node, parent, root);
-    if (cursorDequeue !== null) {
-      operations.push(cursorDequeue);
-      return;
-    }
+      const cursorDequeue = matchQueueCursorDequeue(node, parent, root);
+      if (cursorDequeue !== null) {
+        operations.push(cursorDequeue);
+        return;
+      }
 
-    const call = matchQueueCall(node, root);
-    if (call !== null) {
-      operations.push(call);
-      return;
-    }
+      const call = matchQueueCall(node, root);
+      if (call !== null) {
+        operations.push(call);
+        return;
+      }
 
-    const peek = matchQueuePeek(node, parent, root);
-    if (peek !== null) operations.push(peek);
-  });
+      const peek = matchQueuePeek(node, parent, root);
+      if (peek !== null) operations.push(peek);
+    },
+  );
 
   if (
     !operations.some(
@@ -216,13 +220,20 @@ function analyzeQueue(
         ? operation.member.start < declaration.end
         : operation.call.start < declaration.end,
     ) ||
-    !hasValidQueueCursorUsage(scope, operations, root) ||
-    hasUnsafeQueueUsage(program, declaration, operations, root)
+    !hasValidQueueCursorUsage(binding.scope, operations, root) ||
+    !hasSafePrimaryRootUsage(contract, binding) ||
+    hasUnsafeQueueUsage(binding.scope.body, declaration, operations, root)
   ) {
     return null;
   }
 
-  return { declaration, declarationLine, root, operations };
+  return {
+    declaration,
+    declarationLine,
+    initialRoot: contract.identifier,
+    root,
+    operations,
+  };
 }
 
 function matchQueueCall(node: AnyNode, root: string): QueueCall | null {
@@ -368,24 +379,14 @@ function matchQueuePeek(
   return line === null ? null : { kind: 'peek', member: node, line };
 }
 
-function findQueueDeclarations(program: Program): Array<{
-  readonly declaration: VariableDeclaration;
-  readonly scope: DirectInstrumentationScope;
-}> {
-  return directInstrumentationScopes(program).flatMap((scope) =>
-    scope.body.body.flatMap((statement) =>
-      statement.type === 'VariableDeclaration' &&
-      statement.kind === 'const' &&
-      statement.declarations.length === 1 &&
-      statement.declarations[0]?.id.type === 'Identifier' &&
-      statement.declarations[0].init?.type === 'ArrayExpression' &&
-      statement.declarations[0].init.elements.every(
-        (element) => staticTraceValue(element) !== null,
-      )
-        ? [{ declaration: statement, scope }]
-        : [],
-    ),
-  );
+function findQueueDeclaration(
+  contract: ValidVisualizationSource,
+): VariableDeclaration | null {
+  const initializer = contract.declaration.declarations[0]?.init;
+  return initializer?.type === 'ArrayExpression' &&
+    initializer.elements.every((element) => staticTraceValue(element) !== null)
+    ? contract.declaration
+    : null;
 }
 
 function hasValidQueueCursorUsage(
@@ -475,7 +476,7 @@ function isQueueCursorBound(
 }
 
 function hasUnsafeQueueUsage(
-  program: Program,
+  rootNode: AnyNode,
   declaration: VariableDeclaration,
   operations: readonly QueueOperation[],
   root: string,
@@ -490,7 +491,7 @@ function hasUnsafeQueueUsage(
   const supportedMembers = new Set(operations.map(({ member }) => member));
   let unsafe = false;
 
-  walkAst(program, (node, parent) => {
+  walkAst(rootNode, (node, parent) => {
     if (
       (isRootedInvocation(node, root) &&
         (node.type !== 'CallExpression' || !supportedCalls.has(node))) ||
@@ -541,8 +542,10 @@ function queueOperationReplacement(
     case 'cursor-dequeue':
       return cursorDequeueHelper === null
         ? null
-        : `${cursorDequeueHelper}(${source.slice(operation.update.start, operation.update.end)}, ${operation.line})`;
+        : `${cursorDequeueHelper}(${root}, ${source.slice(operation.update.start, operation.update.end)}, ${operation.line})`;
     case 'peek':
-      return peekHelper === null ? null : `${peekHelper}(${operation.line})`;
+      return peekHelper === null
+        ? null
+        : `${peekHelper}(${root}, ${operation.line})`;
   }
 }

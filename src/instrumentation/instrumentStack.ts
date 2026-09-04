@@ -10,9 +10,7 @@ import {
 import { TRACE_LIMITS } from '../protocol';
 import {
   createIdentifierAllocator,
-  directInstrumentationScopes,
   hasUnsafeInstrumentationSyntax,
-  isCalledExactlyOnce,
   isDirectWriteTarget,
   isDirectRootMethodCall,
   isIdentifierReference,
@@ -22,9 +20,14 @@ import {
   sourceLine,
   staticTraceValue,
   walkAst,
-  type DirectInstrumentationScope,
 } from './ast';
 import { applySourceEdits, type SourceEdit } from './edits';
+import {
+  hasSafePrimaryRootUsage,
+  primaryOperationBindings,
+  type PrimaryOperationBinding,
+  type ValidVisualizationSource,
+} from './sourceContract';
 
 type StackCall = {
   readonly kind: 'push' | 'pop';
@@ -45,6 +48,7 @@ type StackOperation = StackCall | StackPeek;
 type StackCandidate = {
   readonly declaration: VariableDeclaration;
   readonly declarationLine: number;
+  readonly initialRoot: string;
   readonly root: string;
   readonly operations: readonly StackOperation[];
 };
@@ -52,11 +56,15 @@ type StackCandidate = {
 export function instrumentStack(
   source: string,
   program: Program,
+  contract: ValidVisualizationSource,
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const candidates = findEmptyArrayDeclarations(program)
-    .map(({ declaration, scope }) => analyzeStack(program, declaration, scope))
+  const declaration = findStackDeclaration(contract);
+  if (declaration === null) return null;
+
+  const candidates = primaryOperationBindings(contract)
+    .map((binding) => analyzeStack(contract, declaration, binding))
     .filter((candidate): candidate is StackCandidate => candidate !== null);
 
   if (candidates.length !== 1) return null;
@@ -127,7 +135,7 @@ function renderStackHelpers(
 ): string {
   return (
     `;\ntrace.initialize({ structure: 'stack', source: { line: ${candidate.declarationLine} } });\n` +
-    `trace.createStack({ values: ${candidate.root}, source: { line: ${candidate.declarationLine} } });\n` +
+    `trace.createStack({ values: ${candidate.initialRoot}, source: { line: ${candidate.declarationLine} } });\n` +
     `const ${isTraceValue} = (value) => typeof value === 'string' ? value.length <= ${TRACE_LIMITS.stringLength} : typeof value === 'number' && value - value === 0;\n` +
     (push === null
       ? ''
@@ -137,44 +145,39 @@ function renderStackHelpers(
       : `const ${pop} = (method, line) => { const value = method(); if (${isTraceValue}(value)) trace.pop({ source: { line } }); return value; };\n`) +
     (peek === null
       ? ''
-      : `const ${peek} = (method, line) => { const value = method === null ? ${candidate.root}[${candidate.root}.length - 1] : method(-1); if (${isTraceValue}(value)) trace.peek({ source: { line } }); return value; };\n`)
+      : `const ${peek} = (values, method, line) => { const value = method === null ? values[values.length - 1] : method(-1); if (${isTraceValue}(value)) trace.peek({ source: { line } }); return value; };\n`)
   );
 }
 
 function analyzeStack(
-  program: Program,
+  contract: ValidVisualizationSource,
   declaration: VariableDeclaration,
-  scope: DirectInstrumentationScope,
+  binding: PrimaryOperationBinding,
 ): StackCandidate | null {
-  const declarator = declaration.declarations[0];
-  if (declarator?.id.type !== 'Identifier') return null;
-
-  const root = declarator.id.name;
+  const root = binding.root;
   const declarationLine = sourceLine(declaration);
-  if (
-    declarationLine === null ||
-    (scope.owner !== null && !isCalledExactlyOnce(program, scope.owner))
-  ) {
-    return null;
-  }
+  if (declarationLine === null) return null;
 
   const operations: StackOperation[] = [];
 
-  walkAst(scope.body, (node, parent, _grandparent, insideUnsupportedScope) => {
-    if (insideUnsupportedScope) return;
+  walkAst(
+    binding.scope.body,
+    (node, parent, _grandparent, insideUnsupportedScope) => {
+      if (insideUnsupportedScope) return;
 
-    const peek = matchStackPeek(node, parent, root);
-    if (peek !== null) {
-      operations.push(peek);
-      return;
-    }
+      const peek = matchStackPeek(node, parent, root);
+      if (peek !== null) {
+        operations.push(peek);
+        return;
+      }
 
-    const call = matchStackCall(node, root);
-    if (call !== null) {
-      operations.push(call);
-      return;
-    }
-  });
+      const call = matchStackCall(node, root);
+      if (call !== null) {
+        operations.push(call);
+        return;
+      }
+    },
+  );
 
   if (
     !operations.some(({ kind }) => kind === 'pop' || kind === 'peek') ||
@@ -183,12 +186,19 @@ function analyzeStack(
         ? operation.target.start < declaration.end
         : operation.call.start < declaration.end,
     ) ||
-    hasUnsafeStackUsage(program, declaration, operations, root)
+    !hasSafePrimaryRootUsage(contract, binding) ||
+    hasUnsafeStackUsage(binding.scope.body, declaration, operations, root)
   ) {
     return null;
   }
 
-  return { declaration, declarationLine, root, operations };
+  return {
+    declaration,
+    declarationLine,
+    initialRoot: contract.identifier,
+    root,
+    operations,
+  };
 }
 
 function matchStackCall(node: AnyNode, root: string): StackCall | null {
@@ -326,26 +336,18 @@ function matchStackPeek(
       };
 }
 
-function findEmptyArrayDeclarations(program: Program): Array<{
-  readonly declaration: VariableDeclaration;
-  readonly scope: DirectInstrumentationScope;
-}> {
-  return directInstrumentationScopes(program).flatMap((scope) =>
-    scope.body.body.flatMap((statement) =>
-      statement.type === 'VariableDeclaration' &&
-      statement.kind === 'const' &&
-      statement.declarations.length === 1 &&
-      statement.declarations[0]?.id.type === 'Identifier' &&
-      statement.declarations[0].init?.type === 'ArrayExpression' &&
-      statement.declarations[0].init.elements.length === 0
-        ? [{ declaration: statement, scope }]
-        : [],
-    ),
-  );
+function findStackDeclaration(
+  contract: ValidVisualizationSource,
+): VariableDeclaration | null {
+  const initializer = contract.declaration.declarations[0]?.init;
+  return initializer?.type === 'ArrayExpression' &&
+    initializer.elements.length === 0
+    ? contract.declaration
+    : null;
 }
 
 function hasUnsafeStackUsage(
-  program: Program,
+  rootNode: AnyNode,
   declaration: VariableDeclaration,
   operations: readonly StackOperation[],
   root: string,
@@ -366,7 +368,7 @@ function hasUnsafeStackUsage(
   );
   let unsafe = false;
 
-  walkAst(program, (node, parent) => {
+  walkAst(rootNode, (node, parent) => {
     if (
       (isRootedInvocation(node, root) &&
         (node.type !== 'CallExpression' || !supportedCalls.has(node))) ||
@@ -415,6 +417,6 @@ function stackOperationReplacement(
     case 'peek':
       return peekHelper === null
         ? null
-        : `${peekHelper}(${operation.target.type === 'CallExpression' ? `${root}.at.bind(${root})` : 'null'}, ${operation.line})`;
+        : `${peekHelper}(${root}, ${operation.target.type === 'CallExpression' ? `${root}.at.bind(${root})` : 'null'}, ${operation.line})`;
   }
 }

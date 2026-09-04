@@ -22,6 +22,7 @@ import {
   walkAst,
 } from './ast';
 import { applySourceEdits, type SourceEdit } from './edits';
+import type { ValidVisualizationSource } from './sourceContract';
 
 type StaticListNode = {
   readonly id: string;
@@ -80,10 +81,11 @@ type ReadOnlyListCandidate = ListDeclaration & {
 export function instrumentLinkedList(
   source: string,
   program: Program,
+  contract: ValidVisualizationSource,
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const declarations = findListDeclarations(program);
+  const declarations = findListDeclarations(program, contract.identifier);
   const candidates = declarations
     .map(({ declaration, nodes }) => analyzeList(program, declaration, nodes))
     .filter((candidate): candidate is ListCandidate => candidate !== null);
@@ -360,7 +362,10 @@ function nextChainRoot(node: AnyNode): Identifier | null {
   return nextChainRoot(node.object);
 }
 
-function findListDeclarations(program: Program): ListDeclaration[] {
+function findListDeclarations(
+  program: Program,
+  identifier: string,
+): ListDeclaration[] {
   return program.body.flatMap((statement) => {
     if (
       statement.type !== 'VariableDeclaration' ||
@@ -373,6 +378,7 @@ function findListDeclarations(program: Program): ListDeclaration[] {
     const declarator = statement.declarations[0];
     if (
       declarator?.id.type !== 'Identifier' ||
+      declarator.id.name !== identifier ||
       declarator.init?.type !== 'ObjectExpression'
     ) {
       return [];
