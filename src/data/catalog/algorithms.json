@@ -1,127 +1,127 @@
 [
   {
-    "id": "bubble-sort",
-    "name": "Bubble sort",
-    "category": "Array",
-    "structure": "array",
-    "description": "Repeatedly swap adjacent values until the array is sorted.",
-    "code": "const array = [8, 3, 5, 1, 4];\n\nfunction bubbleSort(values) {\n  for (let end = values.length - 1; end > 0; end--) {\n    let swapped = false;\n\n    for (let index = 0; index < end; index++) {\n      if (values[index] > values[index + 1]) {\n        [values[index], values[index + 1]] = [values[index + 1], values[index]];\n        swapped = true;\n      }\n    }\n\n    if (!swapped) break;\n  }\n}\n\nbubbleSort(array);\nconsole.log(array);"
-  },
-  {
     "id": "binary-search",
-    "name": "Binary search",
+    "name": "Binary Search",
     "category": "Array",
     "structure": "array",
-    "description": "Repeatedly halve a sorted array to locate a target value.",
+    "description": "Locate a target in a sorted array by repeatedly halving the search range.",
     "code": "const array = [1, 3, 5, 8, 13];\nconst target = 8;\n\nfunction binarySearch(values, searchTarget) {\n  let left = 0;\n  let right = values.length - 1;\n\n  while (left <= right) {\n    const middle = Math.floor((left + right) / 2);\n\n    if (values[middle] === searchTarget) return middle;\n\n    if (values[middle] < searchTarget) {\n      left = middle + 1;\n    } else {\n      right = middle - 1;\n    }\n  }\n\n  return -1;\n}\n\nconsole.log(binarySearch(array, target));"
   },
   {
     "id": "maximum-subarray",
-    "name": "Maximum subarray",
+    "name": "Maximum Subarray",
     "category": "Array",
     "structure": "array",
-    "description": "Use Kadane's algorithm to find the contiguous subarray with the largest sum.",
+    "description": "Use Kadane's algorithm to find the largest sum of a contiguous subarray.",
     "code": "const array = [-2, 1, -3, 4, -1, 2, 1, -5, 4];\n\nfunction maximumSubarray(values) {\n  let bestSum = values[0];\n\n  for (let index = 1; index < values.length; index++) {\n    if (values[index - 1] + values[index] > values[index]) {\n      values[index] = values[index - 1] + values[index];\n    }\n\n    if (values[index] > bestSum) bestSum = values[index];\n  }\n\n  return bestSum;\n}\n\nconsole.log(maximumSubarray(array));"
   },
   {
-    "id": "matrix-transpose",
-    "name": "Matrix transpose",
-    "category": "Matrix",
-    "structure": "matrix",
-    "description": "Turn matrix rows into columns by reflecting values across the main diagonal.",
-    "code": "const matrix = [\n  [0, 0],\n  [0, 0],\n  [0, 0]\n];\nconst matrixSource = [\n  [1, 2, 3],\n  [4, 5, 6]\n];\n\nfunction transpose(source, output) {\n  for (let row = 0; row < source.length; row++) {\n    for (let column = 0; column < source[row].length; column++) {\n      output[column][row] = source[row][column];\n    }\n  }\n}\n\ntranspose(matrixSource, matrix);\nconsole.log(matrix);"
+    "id": "bubble-sort",
+    "name": "Container With Most Water",
+    "category": "Array",
+    "structure": "array",
+    "description": "Use two pointers to maximize the area between two vertical heights.",
+    "code": "const array = [1, 8, 6, 2, 5, 4, 8, 3, 7];\n\nfunction maxArea(heights) {\n  let left = 0;\n  let right = heights.length - 1;\n  let bestArea = 0;\n\n  while (left < right) {\n    const width = right - left;\n    const height = Math.min(heights[left], heights[right]);\n    bestArea = Math.max(bestArea, width * height);\n\n    if (heights[left] < heights[right]) {\n      left++;\n    } else {\n      right--;\n    }\n  }\n\n  return bestArea;\n}\n\nconsole.log(maxArea(array));"
   },
   {
     "id": "spiral-matrix-traversal",
-    "name": "Spiral matrix traversal",
+    "name": "Spiral Matrix",
     "category": "Matrix",
     "structure": "matrix",
-    "description": "Visit every matrix cell clockwise from the outer boundary inward.",
-    "code": "const matrix = [\n  [0, 0, 0],\n  [0, 0, 0],\n  [0, 0, 0]\n];\nconst matrixSource = [\n  [1, 2, 3],\n  [4, 5, 6],\n  [7, 8, 9]\n];\n\nfunction spiralTraversal(source, output) {\n  const values = [];\n  let top = 0;\n  let bottom = source.length - 1;\n  let left = 0;\n  let right = source[0].length - 1;\n\n  while (top <= bottom && left <= right) {\n    for (let column = left; column <= right; column++) {\n      values.push(source[top][column]);\n      output[top][column] = source[top][column];\n    }\n    top++;\n\n    for (let row = top; row <= bottom; row++) {\n      values.push(source[row][right]);\n      output[row][right] = source[row][right];\n    }\n    right--;\n\n    if (top <= bottom) {\n      for (let column = right; column >= left; column--) {\n        values.push(source[bottom][column]);\n        output[bottom][column] = source[bottom][column];\n      }\n      bottom--;\n    }\n\n    if (left <= right) {\n      for (let row = bottom; row >= top; row--) {\n        values.push(source[row][left]);\n        output[row][left] = source[row][left];\n      }\n      left++;\n    }\n  }\n\n  return values;\n}\n\nconsole.log(spiralTraversal(matrixSource, matrix).join(', '));"
+    "description": "Traverse a matrix clockwise by shrinking its outer boundaries.",
+    "code": "const matrix = [\n  [1, 2, 3],\n  [4, 5, 6],\n  [7, 8, 9]\n];\n\nfunction spiralOrder(values) {\n  const result = [];\n  let top = 0;\n  let bottom = values.length - 1;\n  let left = 0;\n  let right = values[0].length - 1;\n\n  while (top <= bottom && left <= right) {\n    for (let column = left; column <= right; column++) {\n      result.push(values[top][column]);\n    }\n    top++;\n\n    for (let row = top; row <= bottom; row++) {\n      result.push(values[row][right]);\n    }\n    right--;\n\n    if (top <= bottom) {\n      for (let column = right; column >= left; column--) {\n        result.push(values[bottom][column]);\n      }\n      bottom--;\n    }\n\n    if (left <= right) {\n      for (let row = bottom; row >= top; row--) {\n        result.push(values[row][left]);\n      }\n      left++;\n    }\n  }\n\n  return result;\n}\n\nconsole.log(spiralOrder(matrix));"
   },
   {
     "id": "rotate-matrix",
-    "name": "Rotate matrix",
+    "name": "Rotate Image",
     "category": "Matrix",
     "structure": "matrix",
-    "description": "Rotate a square matrix 90 degrees clockwise in place.",
-    "code": "const matrix = [\n  [1, 2, 3],\n  [4, 5, 6],\n  [7, 8, 9]\n];\n\nfunction rotateMatrix(values) {\n  for (let row = 0; row < values.length; row++) {\n    for (let column = row + 1; column < values.length; column++) {\n      [values[row][column], values[column][row]] = [values[column][row], values[row][column]];\n    }\n  }\n\n  for (let row = 0; row < values.length; row++) {\n    for (let left = 0, right = values.length - 1; left < right; left++, right--) {\n      [values[row][left], values[row][right]] = [values[row][right], values[row][left]];\n    }\n  }\n}\n\nrotateMatrix(matrix);\nconsole.log(matrix);"
+    "description": "Rotate a square matrix 90 degrees clockwise by transposing and reversing rows.",
+    "code": "const matrix = [\n  [1, 2, 3],\n  [4, 5, 6],\n  [7, 8, 9]\n];\n\nfunction rotateImage(values) {\n  for (let row = 0; row < values.length; row++) {\n    for (let column = row + 1; column < values.length; column++) {\n      [values[row][column], values[column][row]] = [\n        values[column][row],\n        values[row][column]\n      ];\n    }\n  }\n\n  for (let row = 0; row < values.length; row++) {\n    for (let left = 0, right = values.length - 1; left < right; left++, right--) {\n      [values[row][left], values[row][right]] = [\n        values[row][right],\n        values[row][left]\n      ];\n    }\n  }\n}\n\nrotateImage(matrix);\nconsole.log(matrix);"
+  },
+  {
+    "id": "matrix-transpose",
+    "name": "Set Matrix Zeroes",
+    "category": "Matrix",
+    "structure": "matrix",
+    "description": "Set complete rows and columns to zero when any cell in them is zero.",
+    "code": "const matrix = [\n  [1, 1, 1],\n  [1, 0, 1],\n  [1, 1, 1]\n];\n\nfunction setMatrixZeroes(values) {\n  const zeroRows = new Set();\n  const zeroColumns = new Set();\n\n  for (let row = 0; row < values.length; row++) {\n    for (let column = 0; column < values[row].length; column++) {\n      if (values[row][column] === 0) {\n        zeroRows.add(row);\n        zeroColumns.add(column);\n      }\n    }\n  }\n\n  for (let row = 0; row < values.length; row++) {\n    for (let column = 0; column < values[row].length; column++) {\n      if (zeroRows.has(row) || zeroColumns.has(column)) {\n        values[row][column] = 0;\n      }\n    }\n  }\n}\n\nsetMatrixZeroes(matrix);\nconsole.log(matrix);"
   },
   {
     "id": "in-order-traversal",
-    "name": "In-order traversal",
+    "name": "Maximum Depth of Binary Tree",
     "category": "Tree",
     "structure": "tree",
-    "description": "Visit the left subtree, root, and right subtree in order.",
-    "code": "const tree = {\n  value: 4,\n  left: {\n    value: 2,\n    left: { value: 1, left: null, right: null },\n    right: { value: 3, left: null, right: null }\n  },\n  right: { value: 6, left: null, right: null }\n};\n\nfunction inOrder(node) {\n  if (node === null) return;\n\n  inOrder(node.left);\n  console.log(node.value);\n  inOrder(node.right);\n}\n\ninOrder(tree);"
+    "description": "Compute a binary tree's maximum depth with recursive depth-first search.",
+    "code": "const tree = {\n  value: 3,\n  left: { value: 9, left: null, right: null },\n  right: {\n    value: 20,\n    left: { value: 15, left: null, right: null },\n    right: { value: 7, left: null, right: null }\n  }\n};\n\nfunction maxDepth(node) {\n  if (node === null) return 0;\n  return 1 + Math.max(maxDepth(node.left), maxDepth(node.right));\n}\n\nconsole.log(maxDepth(tree));"
   },
   {
     "id": "pre-order-traversal",
-    "name": "Pre-order traversal",
+    "name": "Validate Binary Search Tree",
     "category": "Tree",
     "structure": "tree",
-    "description": "Visit the root before recursively traversing its left and right subtrees.",
-    "code": "const tree = {\n  value: 'A',\n  left: { value: 'B', left: null, right: null },\n  right: {\n    value: 'C',\n    left: { value: 'D', left: null, right: null },\n    right: null\n  }\n};\n\nfunction preOrder(node) {\n  if (node === null) return;\n\n  console.log(node.value);\n  preOrder(node.left);\n  preOrder(node.right);\n}\n\npreOrder(tree);"
+    "description": "Validate binary-search-tree ordering with recursive lower and upper bounds.",
+    "code": "const tree = {\n  value: 5,\n  left: {\n    value: 3,\n    left: { value: 2, left: null, right: null },\n    right: { value: 4, left: null, right: null }\n  },\n  right: {\n    value: 8,\n    left: { value: 7, left: null, right: null },\n    right: { value: 9, left: null, right: null }\n  }\n};\n\nfunction isValidBst(node, lower, upper) {\n  if (node === null) return true;\n  if (node.value <= lower || node.value >= upper) return false;\n\n  return (\n    isValidBst(node.left, lower, node.value) &&\n    isValidBst(node.right, node.value, upper)\n  );\n}\n\nconsole.log(isValidBst(tree, -Infinity, Infinity));"
   },
   {
     "id": "post-order-traversal",
-    "name": "Post-order traversal",
+    "name": "Binary Tree Level Order Traversal",
     "category": "Tree",
     "structure": "tree",
-    "description": "Visit both subtrees before processing the root node.",
-    "code": "const tree = {\n  value: 'A',\n  left: { value: 'B', left: null, right: null },\n  right: { value: 'C', left: null, right: null }\n};\n\nfunction postOrder(node) {\n  if (node === null) return;\n\n  postOrder(node.left);\n  postOrder(node.right);\n  console.log(node.value);\n}\n\npostOrder(tree);"
+    "description": "Collect binary-tree values level by level with breadth-first search.",
+    "code": "const tree = {\n  value: 3,\n  left: { value: 9, left: null, right: null },\n  right: {\n    value: 20,\n    left: { value: 15, left: null, right: null },\n    right: { value: 7, left: null, right: null }\n  }\n};\n\nfunction levelOrder(root) {\n  if (root === null) return [];\n\n  const result = [];\n  const queue = [root];\n\n  while (queue.length > 0) {\n    const level = [];\n    const levelSize = queue.length;\n\n    for (let index = 0; index < levelSize; index++) {\n      const node = queue.shift();\n      level.push(node.value);\n\n      if (node.left !== null) queue.push(node.left);\n      if (node.right !== null) queue.push(node.right);\n    }\n\n    result.push(level);\n  }\n\n  return result;\n}\n\nconsole.log(levelOrder(tree));"
   },
   {
     "id": "balanced-parentheses",
-    "name": "Balanced parentheses",
+    "name": "Valid Parentheses",
     "category": "Stack",
     "structure": "stack",
-    "description": "Use a stack to verify that every closing bracket matches its opener.",
-    "code": "const stack = [];\n\nfunction hasBalancedBrackets(values, text) {\n  const pairs = { ')': '(', ']': '[', '}': '{' };\n\n  for (const character of text) {\n    if ('([{'.includes(character)) {\n      values.push(character);\n    } else if (pairs[character] && values.pop() !== pairs[character]) {\n      return false;\n    }\n  }\n\n  return values.length === 0;\n}\n\nconsole.log(hasBalancedBrackets(stack, '{[()]}'));"
+    "description": "Match every closing bracket with the latest unmatched opening bracket.",
+    "code": "const stack = ['('];\nconst text = '{[]})';\n\nfunction isValidParentheses(values, input) {\n  const pairs = { ')': '(', ']': '[', '}': '{' };\n\n  for (const character of input) {\n    if (character === '(' || character === '[' || character === '{') {\n      values.push(character);\n    } else if (values.pop() !== pairs[character]) {\n      return false;\n    }\n  }\n\n  return values.length === 0;\n}\n\nconsole.log(isValidParentheses(stack, text));"
   },
   {
     "id": "postfix-evaluation",
-    "name": "Postfix expression evaluation",
+    "name": "Daily Temperatures",
     "category": "Stack",
     "structure": "stack",
-    "description": "Evaluate reverse Polish notation by applying operators to stacked operands.",
-    "code": "const stack = [];\n\nfunction evaluatePostfix(values, tokens) {\n  for (const token of tokens) {\n    if (!['+', '-', '*', '/'].includes(token)) {\n      values.push(Number(token));\n      continue;\n    }\n\n    const right = values.pop();\n    const left = values.pop();\n\n    if (token === '+') values.push(left + right);\n    if (token === '-') values.push(left - right);\n    if (token === '*') values.push(left * right);\n    if (token === '/') values.push(Math.trunc(left / right));\n  }\n\n  return values.pop();\n}\n\nconsole.log(evaluatePostfix(stack, ['2', '1', '+', '3', '*']));"
+    "description": "Use a decreasing stack of indices to find the next warmer day.",
+    "code": "const stack = [0];\nconst temperatures = [73, 74, 75, 71, 69, 72, 76, 73];\n\nfunction dailyTemperatures(indices, values) {\n  const result = Array(values.length).fill(0);\n\n  for (let index = 1; index < values.length; index++) {\n    while (indices.length > 0 && values[index] > values[indices.at(-1)]) {\n      const previousIndex = indices.pop();\n      result[previousIndex] = index - previousIndex;\n    }\n\n    indices.push(index);\n  }\n\n  while (indices.length > 0) indices.pop();\n  return result;\n}\n\nconsole.log(dailyTemperatures(stack, temperatures));"
   },
   {
     "id": "next-greater-element",
-    "name": "Next greater element",
+    "name": "Largest Rectangle in Histogram",
     "category": "Stack",
     "structure": "stack",
-    "description": "Use a monotonic stack to find the next larger value for every element.",
-    "code": "const stack = [];\nconst values = [2, 1, 5, 3, 4];\n\nfunction nextGreaterElements(indices, input) {\n  const result = Array(input.length).fill(-1);\n\n  for (let index = 0; index < input.length; index++) {\n    while (indices.length > 0 && input[index] > input[indices.at(-1)]) {\n      result[indices.pop()] = input[index];\n    }\n\n    indices.push(index);\n  }\n\n  return result;\n}\n\nconsole.log(nextGreaterElements(stack, values));"
+    "description": "Use an increasing stack to find the largest rectangle under a histogram.",
+    "code": "const stack = [0];\nconst heights = [2, 1, 5, 6, 2, 3];\n\nfunction largestRectangleArea(indices, values) {\n  let bestArea = 0;\n\n  for (let index = 1; index <= values.length; index++) {\n    const currentHeight = index === values.length ? 0 : values[index];\n\n    while (\n      indices.length > 0 &&\n      currentHeight < values[indices.at(-1)]\n    ) {\n      const height = values[indices.pop()];\n      const leftBoundary = indices.length === 0 ? -1 : indices.at(-1);\n      bestArea = Math.max(bestArea, height * (index - leftBoundary - 1));\n    }\n\n    indices.push(index);\n  }\n\n  while (indices.length > 0) indices.pop();\n  return bestArea;\n}\n\nconsole.log(largestRectangleArea(stack, heights));"
   },
   {
     "id": "breadth-first-search",
-    "name": "Breadth-first search",
+    "name": "Course Schedule",
     "category": "Graph",
     "structure": "graph",
-    "description": "Use a queue to visit connected nodes one level at a time.",
-    "code": "const graph = {\n  A: ['B', 'C'],\n  B: ['D'],\n  C: ['E'],\n  D: [],\n  E: []\n};\n\nfunction breadthFirstSearch(adjacency) {\n  const queue = ['A'];\n  const visited = new Set(['A']);\n  let head = 0;\n\n  while (head < queue.length) {\n    const node = queue[head++];\n    console.log(node);\n\n    for (const neighbor of adjacency[node]) {\n      if (!visited.has(neighbor)) {\n        visited.add(neighbor);\n        queue.push(neighbor);\n      }\n    }\n  }\n}\n\nbreadthFirstSearch(graph);"
+    "description": "Detect whether all courses can be completed with Kahn's topological sort.",
+    "code": "const graph = {\n  '0': ['1', '2'],\n  '1': ['3'],\n  '2': ['3'],\n  '3': []\n};\n\nfunction canFinish(adjacency) {\n  const indegree = {};\n  for (const course of Object.keys(adjacency)) {\n    indegree[course] = 0;\n  }\n\n  for (const prerequisite of Object.keys(adjacency)) {\n    for (const course of adjacency[prerequisite]) {\n      indegree[course]++;\n    }\n  }\n\n  const queue = [];\n  for (const course of Object.keys(adjacency)) {\n    if (indegree[course] === 0) queue.push(course);\n  }\n\n  let completed = 0;\n  while (queue.length > 0) {\n    const prerequisite = queue.shift();\n    completed++;\n\n    for (const course of adjacency[prerequisite]) {\n      indegree[course]--;\n      if (indegree[course] === 0) queue.push(course);\n    }\n  }\n\n  return completed === Object.keys(adjacency).length;\n}\n\nconsole.log(canFinish(graph));"
   },
   {
     "id": "generate-binary-numbers",
-    "name": "Generate binary numbers",
+    "name": "Sliding Window Maximum",
     "category": "Queue",
     "structure": "queue",
-    "description": "Generate binary representations in order by expanding values through a queue.",
-    "code": "const queue = ['1'];\n\nfunction generateBinaryNumbers(values, count) {\n  const result = [];\n  let head = 0;\n\n  while (result.length < count) {\n    const value = values[head++];\n    result.push(value);\n    values.push(`${value}0`, `${value}1`);\n  }\n\n  return result;\n}\n\nconsole.log(generateBinaryNumbers(queue, 8));"
+    "description": "Maintain a decreasing deque of indices to find each window's maximum.",
+    "code": "const queue = [0];\nconst values = [1, 3, -1, -3, 5, 3, 6, 7];\nconst windowSize = 3;\n\nfunction maxSlidingWindow(indices, input, size) {\n  const result = [];\n\n  for (let index = 1; index < input.length; index++) {\n    while (indices.length > 0 && indices[0] <= index - size) {\n      indices.shift();\n    }\n\n    while (indices.length > 0) {\n      const previousIndex = indices.pop();\n      if (input[previousIndex] > input[index]) {\n        indices.push(previousIndex);\n        break;\n      }\n    }\n\n    indices.push(index);\n\n    if (index >= size - 1) {\n      result.push(input[indices[0]]);\n    }\n  }\n\n  while (indices.length > 0) indices.shift();\n  return result;\n}\n\nconsole.log(maxSlidingWindow(queue, values, windowSize));"
   },
   {
     "id": "reverse-queue",
-    "name": "Reverse a queue",
+    "name": "Rotting Oranges",
     "category": "Queue",
     "structure": "queue",
-    "description": "Reverse queue order by transferring its values through a stack.",
-    "code": "const queue = [1, 2, 3, 4, 5];\n\nfunction reverseQueue(values) {\n  const stack = [];\n\n  while (values.length > 0) {\n    stack.push(values.shift());\n  }\n\n  while (stack.length > 0) {\n    const value = stack.pop();\n    values.push(value);\n  }\n}\n\nreverseQueue(queue);\nconsole.log(queue);"
+    "description": "Use multi-source breadth-first search to spread rot through a grid.",
+    "code": "const queue = [0];\nconst grid = [\n  [2, 1, 1],\n  [1, 1, 0],\n  [0, 1, 1]\n];\n\nfunction orangesRotting(values, matrix) {\n  let fresh = 0;\n\n  for (let row = 0; row < matrix.length; row++) {\n    for (let column = 0; column < matrix[row].length; column++) {\n      if (matrix[row][column] === 1) fresh++;\n    }\n  }\n\n  const directions = [\n    [1, 0],\n    [-1, 0],\n    [0, 1],\n    [0, -1]\n  ];\n  let minutes = 0;\n\n  while (values.length > 0 && fresh > 0) {\n    const levelSize = values.length;\n\n    for (let index = 0; index < levelSize; index++) {\n      const position = values.shift();\n      const row = Math.floor(position / matrix[0].length);\n      const column = position % matrix[0].length;\n\n      for (const [rowOffset, columnOffset] of directions) {\n        const nextRow = row + rowOffset;\n        const nextColumn = column + columnOffset;\n\n        if (\n          nextRow >= 0 &&\n          nextRow < matrix.length &&\n          nextColumn >= 0 &&\n          nextColumn < matrix[0].length &&\n          matrix[nextRow][nextColumn] === 1\n        ) {\n          matrix[nextRow][nextColumn] = 2;\n          fresh--;\n          const nextPosition = nextRow * matrix[0].length + nextColumn;\n          values.push(nextPosition);\n        }\n      }\n    }\n\n    minutes++;\n  }\n\n  while (values.length > 0) values.shift();\n  return fresh === 0 ? minutes : -1;\n}\n\nconsole.log(orangesRotting(queue, grid));"
   },
   {
     "id": "reverse-linked-list",
-    "name": "Reverse a linked list",
+    "name": "Reverse Linked List",
     "category": "Linked List",
     "structure": "linked-list",
     "description": "Reverse every next pointer in a singly linked list.",
@@ -129,42 +129,42 @@
   },
   {
     "id": "linked-list-cycle",
-    "name": "Detect a linked-list cycle",
+    "name": "Linked List Cycle",
     "category": "Linked List",
     "structure": "linked-list",
-    "description": "Use Floyd's slow and fast pointers to detect a cycle.",
+    "description": "Detect a linked-list cycle with Floyd's slow and fast pointers.",
     "code": "const linkedList = {\n  value: 1,\n  next: { value: 2, next: { value: 3, next: null } }\n};\nlinkedList.next.next.next = linkedList.next;\n\nfunction hasCycle(head) {\n  let slow = head;\n  let fast = head;\n\n  while (fast !== null && fast.next !== null) {\n    slow = slow.next;\n    fast = fast.next.next;\n\n    if (slow === fast) return true;\n  }\n\n  return false;\n}\n\nconsole.log(hasCycle(linkedList));\nlinkedList.next.next.next = null;"
   },
   {
     "id": "linked-list-middle",
-    "name": "Find the middle node",
+    "name": "Merge Two Sorted Lists",
     "category": "Linked List",
     "structure": "linked-list",
-    "description": "Advance one pointer twice as fast as another to find the list midpoint.",
-    "code": "const linkedList = {\n  value: 1,\n  next: {\n    value: 2,\n    next: { value: 3, next: { value: 4, next: null } }\n  }\n};\n\nfunction findMiddle(head) {\n  let slow = head;\n  let fast = head;\n\n  while (fast !== null && fast.next !== null) {\n    slow = slow.next;\n    fast = fast.next.next;\n  }\n\n  return slow;\n}\n\nconsole.log(findMiddle(linkedList));"
+    "description": "Merge two sorted linked lists by relinking their existing nodes.",
+    "code": "const linkedList = {\n  value: 1,\n  next: { value: 2, next: { value: 4, next: null } }\n};\nconst linkedList2 = {\n  value: 1,\n  next: { value: 3, next: { value: 4, next: null } }\n};\n\nfunction mergeTwoLists(first, second) {\n  const dummy = { value: 0, next: null };\n  let tail = dummy;\n  let left = first;\n  let right = second;\n\n  while (left !== null && right !== null) {\n    if (left.value <= right.value) {\n      tail.next = left;\n      left = left.next;\n    } else {\n      tail.next = right;\n      right = right.next;\n    }\n    tail = tail.next;\n  }\n\n  tail.next = left === null ? right : left;\n  return dummy.next;\n}\n\nconsole.log(mergeTwoLists(linkedList, linkedList2));"
   },
   {
     "id": "two-sum",
-    "name": "Two sum",
+    "name": "Two Sum",
     "category": "Hash Table",
     "structure": "hash-table",
-    "description": "Store previously seen values to find a pair matching the target sum.",
-    "code": "const hashTable = new Map();\nconst values = [2, 7, 11, 15];\nconst target = 9;\n\nfunction twoSum(entries, input, sum) {\n  for (let index = 0; index < input.length; index++) {\n    const complement = sum - input[index];\n\n    if (entries.has(complement)) {\n      return [entries.get(complement), index];\n    }\n\n    entries.set(input[index], index);\n  }\n\n  return null;\n}\n\nconsole.log(twoSum(hashTable, values, target));"
-  },
-  {
-    "id": "frequency-counter",
-    "name": "Frequency counter",
-    "category": "Hash Table",
-    "structure": "hash-table",
-    "description": "Count how often each value occurs using a hash table.",
-    "code": "const hashTable = new Map();\nconst values = ['a', 'b', 'a', 'c', 'b', 'a'];\n\nfunction countFrequencies(entries, input) {\n  const result = {};\n\n  for (const value of input) {\n    const count = (entries.get(value) ?? 0) + 1;\n    entries.set(value, count);\n    result[value] = count;\n  }\n\n  return result;\n}\n\nconsole.log(countFrequencies(hashTable, values));"
+    "description": "Use a map of seen values to locate two indices whose values sum to a target.",
+    "code": "const hashTable = new Map();\nconst values = [2, 7, 11, 15];\nconst target = 9;\n\nfunction twoSum(seen, input, sum) {\n  for (let index = 0; index < input.length; index++) {\n    const complement = sum - input[index];\n\n    if (seen.has(complement)) {\n      return [seen.get(complement), index];\n    }\n\n    seen.set(input[index], index);\n  }\n\n  return [];\n}\n\nconsole.log(twoSum(hashTable, values, target));"
   },
   {
     "id": "group-anagrams",
-    "name": "Group anagrams",
+    "name": "Group Anagrams",
     "category": "Hash Table",
     "structure": "hash-table",
-    "description": "Group words by a canonical sorted-letter key stored in a hash table.",
-    "code": "const hashTable = new Map();\nconst words = ['eat', 'tea', 'tan', 'ate', 'nat', 'bat'];\n\nfunction groupAnagrams(entries, input) {\n  const groups = [];\n\n  for (const word of input) {\n    const key = [...word].sort().join('');\n    let groupIndex = entries.get(key);\n\n    if (groupIndex === undefined) {\n      groupIndex = groups.length;\n      groups.push([]);\n      entries.set(key, groupIndex);\n    }\n\n    groups[groupIndex].push(word);\n  }\n\n  return groups;\n}\n\nconsole.log(groupAnagrams(hashTable, words));"
+    "description": "Group words by a canonical sorted-letter key stored in a map.",
+    "code": "const hashTable = new Map();\nconst words = ['eat', 'tea', 'tan', 'ate', 'nat', 'bat'];\n\nfunction groupAnagrams(groupsByKey, input) {\n  const groups = [];\n\n  for (const word of input) {\n    const key = [...word].sort().join('');\n    let groupIndex = groupsByKey.get(key);\n\n    if (groupIndex === undefined) {\n      groupIndex = groups.length;\n      groups.push([]);\n      groupsByKey.set(key, groupIndex);\n    }\n\n    groups[groupIndex].push(word);\n  }\n\n  return groups;\n}\n\nconsole.log(groupAnagrams(hashTable, words));"
+  },
+  {
+    "id": "frequency-counter",
+    "name": "Longest Consecutive Sequence",
+    "category": "Hash Table",
+    "structure": "hash-table",
+    "description": "Use the canonical map to find the longest run of consecutive integers in linear time.",
+    "code": "const hashTable = new Map();\nconst numbers = [100, 4, 200, 1, 3, 2];\n\nfunction longestConsecutive(values, input) {\n  const uniqueValues = [];\n\n  for (const value of input) {\n    if (values.has(value)) continue;\n    values.set(value, 1);\n    uniqueValues.push(value);\n  }\n\n  let longest = 0;\n\n  for (const value of uniqueValues) {\n    if (values.has(value - 1)) continue;\n\n    let current = value;\n    let length = 1;\n\n    while (values.has(current + 1)) {\n      current++;\n      length++;\n    }\n\n    longest = Math.max(longest, length);\n  }\n\n  return longest;\n}\n\nconsole.log(longestConsecutive(hashTable, numbers));"
   }
 ]

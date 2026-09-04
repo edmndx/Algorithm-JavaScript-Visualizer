@@ -6,6 +6,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { algorithmCatalog, type AlgorithmId } from '../src/data/catalog';
+import { parseJavaScript } from '../src/instrumentation/ast';
 import { instrumentJavaScript } from '../src/instrumentation/instrumentJavaScript';
 import { buildTimeline, getPlaybackFrame } from '../src/playback/timeline';
 import { TRACE_PROTOCOL_VERSION, validateTrace } from '../src/protocol';
@@ -18,6 +19,67 @@ import { groupHashTableEntries } from '../src/visualization/renderHashTable';
 import { getLinkedListDisplayOrder } from '../src/visualization/renderLinkedList';
 import { createTreeLayout } from '../src/visualization/treeLayout';
 import { settleD3 } from './domTestEnvironment';
+
+function executeCatalogSource(code: string): readonly unknown[][] {
+  const output: unknown[][] = [];
+  const console = { log: (...values: unknown[]) => output.push(values) };
+  Function('console', `"use strict";\n${code}`)(console);
+  return output;
+}
+
+const expectedLastConsoleValue = {
+  'maximum-subarray': 6,
+  'spiral-matrix-traversal': [1, 2, 3, 6, 9, 8, 7, 4, 5],
+  'rotate-matrix': [
+    [7, 4, 1],
+    [8, 5, 2],
+    [9, 6, 3],
+  ],
+  'matrix-transpose': [
+    [1, 0, 1],
+    [0, 0, 0],
+    [1, 0, 1],
+  ],
+  'in-order-traversal': 3,
+  'pre-order-traversal': true,
+  'post-order-traversal': [[3], [9, 20], [15, 7]],
+  'balanced-parentheses': true,
+  'postfix-evaluation': [1, 1, 4, 2, 1, 1, 0, 0],
+  'next-greater-element': 10,
+  'breadth-first-search': true,
+  'generate-binary-numbers': [3, 3, 5, 5, 6, 7],
+  'reverse-queue': 4,
+  'linked-list-cycle': true,
+  'group-anagrams': [['eat', 'tea', 'ate'], ['tan', 'nat'], ['bat']],
+  'frequency-counter': 4,
+} as const;
+
+function catalogAlgorithm(id: AlgorithmId) {
+  const algorithm = algorithmCatalog.find((entry) => entry.id === id);
+  assert.ok(algorithm !== undefined, `Missing catalog algorithm: ${id}`);
+  return algorithm;
+}
+
+function linkedListValueChain(value: unknown): readonly unknown[] {
+  const values: unknown[] = [];
+  let current = value;
+
+  while (typeof current === 'object' && current !== null) {
+    assert.ok('value' in current, 'Expected a linked-list value.');
+    assert.ok('next' in current, 'Expected a linked-list next pointer.');
+    values.push(current.value);
+    current = current.next;
+  }
+
+  assert.equal(current, null, 'Expected the linked list to terminate.');
+  return values;
+}
+
+function commandTypes(
+  commands: readonly { readonly type: string }[],
+): readonly string[] {
+  return commands.map(({ type }) => type);
+}
 
 function assertFrameSemantics(scene: SceneState): void {
   assert.equal(getVisualizationCapacityMessage(scene), null);
@@ -195,6 +257,33 @@ function assertPersistentInitialStructure(scenes: readonly SceneState[]): void {
   }
 }
 
+function assertUsefulInitialStructure(scene: SceneState): void {
+  switch (scene.structure) {
+    case null:
+      throw new Error('Catalog playback produced an empty initial scene.');
+    case 'array':
+    case 'stack':
+    case 'queue':
+      assert.ok(scene.values.length > 0);
+      return;
+    case 'matrix':
+      assert.ok(scene.values.length > 0);
+      assert.ok(scene.values.every((row) => row.length > 0));
+      return;
+    case 'linked-list':
+    case 'tree':
+      assert.ok(scene.nodes.length > 0);
+      return;
+    case 'graph':
+      assert.ok(scene.nodes.length > 0);
+      assert.ok(scene.edges.length > 0);
+      return;
+    case 'hash-table':
+      assert.ok(scene.bucketCount > 0);
+      return;
+  }
+}
+
 function renderedEntityMap(
   svg: SVGSVGElement,
   scene: SceneState,
@@ -249,7 +338,7 @@ function assertExpectedFinalScene(id: AlgorithmId, scene: SceneState): void {
     case 'bubble-sort':
       assert.equal(scene.structure, 'array');
       if (scene.structure === 'array')
-        assert.deepEqual(scene.values, [1, 3, 4, 5, 8]);
+        assert.deepEqual(scene.values, [1, 8, 6, 2, 5, 4, 8, 3, 7]);
       return;
     case 'binary-search':
       assert.equal(scene.structure, 'array');
@@ -271,9 +360,9 @@ function assertExpectedFinalScene(id: AlgorithmId, scene: SceneState): void {
       assert.equal(scene.structure, 'matrix');
       if (scene.structure === 'matrix')
         assert.deepEqual(scene.values, [
-          [1, 4],
-          [2, 5],
-          [3, 6],
+          [1, 0, 1],
+          [0, 0, 0],
+          [1, 0, 1],
         ]);
       return;
     case 'spiral-matrix-traversal':
@@ -297,17 +386,17 @@ function assertExpectedFinalScene(id: AlgorithmId, scene: SceneState): void {
     case 'in-order-traversal':
       assert.equal(scene.structure, 'tree');
       if (scene.structure === 'tree')
-        assert.deepEqual(visitedTreeValues(scene), [1, 2, 3, 4, 6]);
+        assert.deepEqual(visitedTreeValues(scene), [3, 9, 20, 15, 7]);
       return;
     case 'pre-order-traversal':
       assert.equal(scene.structure, 'tree');
       if (scene.structure === 'tree')
-        assert.deepEqual(visitedTreeValues(scene), ['A', 'B', 'C', 'D']);
+        assert.deepEqual(visitedTreeValues(scene), [5, 3, 2, 4, 8, 7, 9]);
       return;
     case 'post-order-traversal':
       assert.equal(scene.structure, 'tree');
       if (scene.structure === 'tree')
-        assert.deepEqual(visitedTreeValues(scene), ['B', 'C', 'A']);
+        assert.deepEqual(visitedTreeValues(scene), [3, 9, 20, 15, 7]);
       return;
     case 'balanced-parentheses':
       assert.equal(scene.structure, 'stack');
@@ -319,40 +408,27 @@ function assertExpectedFinalScene(id: AlgorithmId, scene: SceneState): void {
       return;
     case 'next-greater-element':
       assert.equal(scene.structure, 'stack');
-      if (scene.structure === 'stack') assert.deepEqual(scene.values, [2, 4]);
+      if (scene.structure === 'stack') assert.deepEqual(scene.values, []);
       return;
     case 'breadth-first-search':
       assert.equal(scene.structure, 'graph');
       if (scene.structure === 'graph') {
-        assert.deepEqual(scene.visitedNodeIds, ['A', 'B', 'C', 'D', 'E']);
+        assert.deepEqual(scene.visitedNodeIds, ['0', '1', '2', '3']);
         assert.deepEqual(scene.visitedEdgeIds, [
-          'A->B',
-          'A->C',
-          'B->D',
-          'C->E',
+          '0->1',
+          '0->2',
+          '1->3',
+          '2->3',
         ]);
       }
       return;
     case 'generate-binary-numbers':
       assert.equal(scene.structure, 'queue');
-      if (scene.structure === 'queue') {
-        assert.deepEqual(scene.values, [
-          '1001',
-          '1010',
-          '1011',
-          '1100',
-          '1101',
-          '1110',
-          '1111',
-          '10000',
-          '10001',
-        ]);
-      }
+      if (scene.structure === 'queue') assert.deepEqual(scene.values, []);
       return;
     case 'reverse-queue':
       assert.equal(scene.structure, 'queue');
-      if (scene.structure === 'queue')
-        assert.deepEqual(scene.values, [5, 4, 3, 2, 1]);
+      if (scene.structure === 'queue') assert.deepEqual(scene.values, []);
       return;
     case 'reverse-linked-list':
       assert.equal(scene.structure, 'linked-list');
@@ -378,9 +454,8 @@ function assertExpectedFinalScene(id: AlgorithmId, scene: SceneState): void {
       if (scene.structure === 'linked-list') {
         assert.deepEqual(
           getLinkedListDisplayOrder(scene).map((node) => node.value),
-          [1, 2, 3, 4],
+          [1, 1, 2, 3, 4, 4],
         );
-        assert.deepEqual(scene.visitedNodeIds, ['node-1', 'node-2']);
       }
       return;
     case 'two-sum':
@@ -395,9 +470,12 @@ function assertExpectedFinalScene(id: AlgorithmId, scene: SceneState): void {
       assert.equal(scene.structure, 'hash-table');
       if (scene.structure === 'hash-table') {
         assert.deepEqual(hashEntries(scene), [
-          { bucketIndex: 13, key: 'a', value: 3 },
-          { bucketIndex: 8, key: 'b', value: 2 },
-          { bucketIndex: 3, key: 'c', value: 1 },
+          { bucketIndex: 3, key: 100, value: 1 },
+          { bucketIndex: 11, key: 4, value: 1 },
+          { bucketIndex: 5, key: 200, value: 1 },
+          { bucketIndex: 7, key: 1, value: 1 },
+          { bucketIndex: 14, key: 3, value: 1 },
+          { bucketIndex: 2, key: 2, value: 1 },
         ]);
       }
       return;
@@ -413,6 +491,210 @@ function assertExpectedFinalScene(id: AlgorithmId, scene: SceneState): void {
       return;
   }
 }
+
+test('catalog sources return their hand-derived results', () => {
+  for (const [id, expected] of Object.entries(expectedLastConsoleValue)) {
+    const algorithm = catalogAlgorithm(id as AlgorithmId);
+    const output = executeCatalogSource(algorithm.code);
+
+    assert.deepEqual(
+      output.at(-1)?.at(-1),
+      expected,
+      `${algorithm.name} returned an unexpected final console value.`,
+    );
+  }
+});
+
+test('Longest Consecutive Sequence checks duplicate-heavy input in linear time', () => {
+  const algorithm = catalogAlgorithm('frequency-counter');
+  const duplicateHeavySource = algorithm.code.replace(
+    'const numbers = [100, 4, 200, 1, 3, 2];',
+    'const numbers = [...Array(200).fill(1), ...Array.from({ length: 199 }, (_, index) => index + 2)];',
+  );
+  let hasOperations = 0;
+
+  class CountingMap<Key, Value> extends Map<Key, Value> {
+    override has(key: Key): boolean {
+      hasOperations++;
+      return super.has(key);
+    }
+  }
+
+  const output: unknown[][] = [];
+  const console = { log: (...values: unknown[]) => output.push(values) };
+  Function(
+    'Map',
+    'console',
+    `"use strict";\n${duplicateHeavySource}`,
+  )(CountingMap, console);
+
+  assert.equal(output.at(-1)?.at(-1), 200);
+  assert.ok(
+    hasOperations <= 800,
+    `Expected at most 800 Map.has operations, received ${hasOperations}.`,
+  );
+});
+
+test('Merge Two Sorted Lists traces disjoint inputs into its returned value chain', async () => {
+  const algorithm = catalogAlgorithm('linked-list-middle');
+  const output = executeCatalogSource(algorithm.code);
+
+  assert.deepEqual(
+    linkedListValueChain(output.at(-1)?.at(-1)),
+    [1, 1, 2, 3, 4, 4],
+  );
+
+  const instrumentation = instrumentJavaScript(
+    algorithm.code,
+    algorithm.structure,
+  );
+  assert.equal(instrumentation.status, 'instrumented');
+  if (instrumentation.status !== 'instrumented') return;
+
+  const execution = await runCode(instrumentation.source, { tracing: true });
+  assert.equal(execution.ok, true);
+  if (!execution.ok) return;
+
+  const create = execution.commands.find(
+    (command) => command.type === 'linked-list.create',
+  );
+  assert.ok(create !== undefined);
+  if (create === undefined || create.type !== 'linked-list.create') return;
+  assert.deepEqual(create.nodes, [
+    { id: 'node-0', value: 1, nextId: 'node-1' },
+    { id: 'node-1', value: 2, nextId: 'node-2' },
+    { id: 'node-2', value: 4, nextId: null },
+    { id: 'node-3', value: 1, nextId: 'node-4' },
+    { id: 'node-4', value: 3, nextId: 'node-5' },
+    { id: 'node-5', value: 4, nextId: null },
+  ]);
+
+  const timelineResult = buildTimeline(execution.commands);
+  assert.equal(timelineResult.ok, true);
+  if (!timelineResult.ok) return;
+  const initialScene = getPlaybackFrame(timelineResult.timeline, 0).scene;
+  assert.equal(initialScene.structure, 'linked-list');
+  if (initialScene.structure !== 'linked-list') return;
+  assert.deepEqual(
+    getLinkedListDisplayOrder(initialScene).map(({ value }) => value),
+    [1, 2, 4, 1, 3, 4],
+  );
+
+  const finalScene = getPlaybackFrame(
+    timelineResult.timeline,
+    timelineResult.timeline.operationCount,
+  ).scene;
+  assert.equal(finalScene.structure, 'linked-list');
+  if (finalScene.structure !== 'linked-list') return;
+  assert.deepEqual(
+    getLinkedListDisplayOrder(finalScene).map(({ value }) => value),
+    [1, 1, 2, 3, 4, 4],
+  );
+});
+
+test('Spiral Matrix traces the matrix it traverses', async () => {
+  const algorithm = catalogAlgorithm('spiral-matrix-traversal');
+  const instrumentation = instrumentJavaScript(
+    algorithm.code,
+    algorithm.structure,
+  );
+  assert.equal(instrumentation.status, 'instrumented');
+  if (instrumentation.status !== 'instrumented') return;
+
+  const execution = await runCode(instrumentation.source, { tracing: true });
+  assert.equal(execution.ok, true);
+  if (!execution.ok) return;
+
+  const create = execution.commands.find(
+    (command) => command.type === 'matrix.create',
+  );
+  assert.ok(create !== undefined, 'Spiral Matrix must create a trace matrix.');
+  if (create === undefined) return;
+  assert.deepEqual(create.values, [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9],
+  ]);
+});
+
+const tracedCatalogFunctions = [
+  ['spiral-matrix-traversal', 'spiralOrder'],
+  ['in-order-traversal', 'maxDepth'],
+  ['pre-order-traversal', 'isValidBst'],
+  ['post-order-traversal', 'levelOrder'],
+  ['breadth-first-search', 'canFinish'],
+  ['generate-binary-numbers', 'maxSlidingWindow'],
+  ['linked-list-middle', 'mergeTwoLists'],
+] as const satisfies readonly (readonly [AlgorithmId, string])[];
+
+for (const [id, functionName] of tracedCatalogFunctions) {
+  test(`${catalogAlgorithm(id).name} traces structural commands from ${functionName}`, async () => {
+    const algorithm = catalogAlgorithm(id);
+    const program = parseJavaScript(algorithm.code);
+    assert.ok(program !== null, `${algorithm.name} must parse.`);
+    if (program === null) return;
+
+    const declaration = program.body.find(
+      (statement) =>
+        statement.type === 'FunctionDeclaration' &&
+        statement.id?.name === functionName,
+    );
+    assert.ok(
+      declaration !== undefined,
+      `${algorithm.name} must declare ${functionName}.`,
+    );
+    if (declaration === undefined || declaration.loc === undefined) return;
+
+    const instrumentation = instrumentJavaScript(
+      algorithm.code,
+      algorithm.structure,
+    );
+    assert.equal(instrumentation.status, 'instrumented');
+    if (instrumentation.status !== 'instrumented') return;
+
+    const execution = await runCode(instrumentation.source, { tracing: true });
+    assert.equal(execution.ok, true);
+    if (!execution.ok) return;
+
+    const structuralCommands = execution.commands.filter(
+      (command) =>
+        command.type !== 'scene.init' && !command.type.endsWith('.create'),
+    );
+    assert.ok(
+      structuralCommands.length > 0,
+      `${algorithm.name} must emit structural trace commands.`,
+    );
+
+    for (const command of structuralCommands) {
+      const line = command.source?.line;
+      assert.ok(
+        line !== undefined,
+        `${algorithm.name} emitted ${command.type} without a source line.`,
+      );
+      if (line === undefined) return;
+      assert.ok(
+        line >= declaration.loc.start.line && line <= declaration.loc.end.line,
+        `${algorithm.name} emitted ${command.type} from line ${line}, outside ${functionName}.`,
+      );
+    }
+  });
+}
+
+test('Sliding Window Maximum emits dequeue-back trace commands', async () => {
+  const algorithm = catalogAlgorithm('generate-binary-numbers');
+  const instrumentation = instrumentJavaScript(
+    algorithm.code,
+    algorithm.structure,
+  );
+  assert.equal(instrumentation.status, 'instrumented');
+  if (instrumentation.status !== 'instrumented') return;
+
+  const execution = await runCode(instrumentation.source, { tracing: true });
+  assert.equal(execution.ok, true);
+  if (!execution.ok) return;
+
+  assert.ok(commandTypes(execution.commands).includes('queue.dequeueBack'));
+});
 
 for (const algorithm of algorithmCatalog) {
   test(`${algorithm.name} traverses the real catalog visualization pipeline`, async () => {
@@ -447,6 +729,8 @@ for (const algorithm of algorithmCatalog) {
     if (!timelineResult.ok) return;
     const { timeline } = timelineResult;
     assert.ok(timeline.operationCount > 0);
+
+    assertUsefulInitialStructure(getPlaybackFrame(timeline, 0).scene);
 
     const frames = Array.from(
       { length: timeline.operationCount + 1 },

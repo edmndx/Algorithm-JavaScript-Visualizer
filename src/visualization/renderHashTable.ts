@@ -105,15 +105,6 @@ export const renderHashTable: D3RenderFunction<HashTableSceneState> = (
     .attr('class', 'visualization-hash-table')
     .attr('transform', `translate(${PADDING}, ${PADDING})`);
 
-  root
-    .selectAll<SVGTextElement, null>('text.visualization-empty-structure')
-    .data(scene.bucketCount === 0 ? [null] : [])
-    .join('text')
-    .attr('class', 'visualization-empty-structure')
-    .attr('x', (width - PADDING * 2) / 2)
-    .attr('y', ROW_HEIGHT / 2)
-    .text('EMPTY HASH TABLE');
-
   const bucketGroups = root
     .selectAll<SVGGElement, number>('g.visualization-hash-bucket')
     .data(Array.from({ length: scene.bucketCount }, (_, index) => index))

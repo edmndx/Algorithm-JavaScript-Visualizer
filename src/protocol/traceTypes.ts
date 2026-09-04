@@ -94,6 +94,7 @@ export type StackMarkCommand = CommandOf<'stack.mark'>;
 export type QueueCreateCommand = CommandOf<'queue.create'>;
 export type QueueEnqueueCommand = CommandOf<'queue.enqueue'>;
 export type QueueDequeueCommand = CommandOf<'queue.dequeue'>;
+export type QueueDequeueBackCommand = CommandOf<'queue.dequeueBack'>;
 export type QueuePeekCommand = CommandOf<'queue.peek'>;
 export type QueueMarkCommand = CommandOf<'queue.mark'>;
 export type LinkedListCreateCommand = CommandOf<'linked-list.create'>;
