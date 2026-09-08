@@ -13,6 +13,7 @@ import { TRACE_PROTOCOL_VERSION, validateTrace } from '../src/protocol';
 import { runCode } from '../src/runner/runner';
 import type { SceneState } from '../src/scene';
 import SceneRenderer from '../src/visualization/SceneRenderer';
+import VisualizationPanel from '../src/ui/components/VisualizationPanel';
 import { createGraphLayout } from '../src/visualization/graphLayout';
 import { getVisualizationCapacityMessage } from '../src/visualization/visualizationLimits';
 import { groupHashTableEntries } from '../src/visualization/renderHashTable';
@@ -25,6 +26,100 @@ function executeCatalogSource(code: string): readonly unknown[][] {
   const console = { log: (...values: unknown[]) => output.push(values) };
   Function('console', `"use strict";\n${code}`)(console);
   return output;
+}
+
+for (const structure of new Set(
+  algorithmCatalog.map((algorithm) => algorithm.structure),
+)) {
+  test(`${structure} catalog scene keeps viewport controls through playback and expansion`, async () => {
+    const algorithm = algorithmCatalog.find(
+      (entry) => entry.structure === structure,
+    )!;
+    const instrumentation = instrumentJavaScript(algorithm.code, structure);
+    assert.equal(instrumentation.status, 'instrumented');
+    if (instrumentation.status !== 'instrumented') return;
+    const execution = await runCode(instrumentation.source, { tracing: true });
+    assert.equal(execution.ok, true);
+    if (!execution.ok) return;
+    const result = buildTimeline(execution.commands);
+    if (!result.ok) throw result.error;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const noop = () => {};
+    const render = async (step: number) =>
+      act(async () =>
+        root.render(
+          createElement(VisualizationPanel, {
+            scene: getPlaybackFrame(result.timeline, step).scene,
+            currentStep: step,
+            totalSteps: result.timeline.operationCount,
+            playbackSequence: result.timeline,
+            isPlaying: false,
+            canPlay: true,
+            canGoBack: step > 0,
+            canGoForward: true,
+            onPlay: noop,
+            onPause: noop,
+            onNext: noop,
+            onPrevious: noop,
+            onReset: noop,
+          }),
+        ),
+      );
+    const click = async (name: string) => {
+      const button = host.querySelector<HTMLButtonElement>(
+        `button[aria-label="${name}"]`,
+      );
+      assert.ok(button);
+      await act(async () => button.click());
+    };
+    const box = () =>
+      host
+        .querySelector('.visualization-svg')!
+        .getAttribute('viewBox')!
+        .split(' ')
+        .map(Number);
+    try {
+      await render(0);
+      await settleD3();
+      const base = box();
+      await click('Zoom in');
+      assert.ok(Math.abs(box()[2]! * 1.2 - base[2]!) < 1e-8);
+      await render(1);
+      await settleD3();
+      const zoomed = box();
+      const svg = host.querySelector('.visualization-svg');
+      const entities = Array.from(
+        host.querySelectorAll(
+          '[data-item-id], [data-node-id], [data-entry-id]',
+        ),
+      );
+      await click('Expand visualization');
+      assert.equal(host.querySelector('.visualization-svg'), svg);
+      assert.deepEqual(
+        Array.from(
+          host.querySelectorAll(
+            '[data-item-id], [data-node-id], [data-entry-id]',
+          ),
+        ),
+        entities,
+      );
+      assert.deepEqual(box(), zoomed);
+      await click('Collapse visualization');
+      assert.deepEqual(box(), zoomed);
+      assert.equal(
+        host.querySelector('.playback-status-current')?.textContent,
+        '1',
+      );
+      await click('Zoom out');
+      assert.ok(Math.abs(box()[2]! - zoomed[2]! * 1.2) < 1e-8);
+      assert.ok(box().every(Number.isFinite));
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
 }
 
 const expectedLastConsoleValue = {

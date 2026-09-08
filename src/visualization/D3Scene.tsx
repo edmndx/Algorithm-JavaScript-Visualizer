@@ -1,5 +1,7 @@
 import { select } from 'd3';
-import { useLayoutEffect, useRef } from 'react';
+import { useContext, useLayoutEffect, useRef } from 'react';
+import { VisualizationZoomContext } from './viewport';
+import { setVisualizationZoom } from './viewBoxTransition';
 
 import { VISUALIZATION_VIEW_BOX_TRANSITION } from './visualizationTransition';
 
@@ -34,7 +36,13 @@ export default function D3Scene<Scene extends VisualScene>({
   playbackPosition,
 }: D3SceneProps<Scene>) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const zoom = useContext(VisualizationZoomContext);
   const previousPosition = useRef<PlaybackPosition | undefined>(undefined);
+
+  // Zoom updates never rerun joins or interrupt item/natural-bound transitions.
+  useLayoutEffect(() => {
+    if (svgRef.current !== null) setVisualizationZoom(svgRef.current, zoom);
+  }, [zoom]);
 
   useLayoutEffect(() => {
     const svg = svgRef.current;
