@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createElement, act } from 'react';
+import { createRoot } from 'react-dom/client';
+import VisualizationPanel from '../src/ui/components/VisualizationPanel';
+import { applyZoomToViewBox, clampZoom } from '../src/visualization/viewport';
+import {
+  setVisualizationZoom,
+  updateVisualizationViewBox,
+} from '../src/visualization/viewBoxTransition';
 
 import { buildTimeline, getPlaybackFrame } from '../src/playback/timeline';
 import type {
@@ -27,6 +35,168 @@ import {
   VISUALIZATION_READABILITY_LIMITS,
 } from '../src/visualization/visualizationLimits';
 import { createSvg, settleD3 } from './domTestEnvironment';
+
+test('viewport controls preserve the scene, identities, playback and zoom through expansion', async () => {
+  const result = buildTimeline([
+    { type: 'scene.init', structure: 'queue' },
+    { type: 'queue.create', values: ['A', 'B'] },
+    { type: 'queue.enqueue', value: 'C' },
+    { type: 'queue.peek' },
+  ]);
+  if (!result.ok) throw result.error;
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const noop = () => {};
+  const render = async (
+    step: number,
+    scene = getPlaybackFrame(result.timeline, step).scene,
+  ) => {
+    await act(async () =>
+      root.render(
+        createElement(VisualizationPanel, {
+          scene,
+          currentStep: step,
+          playbackSequence: result.timeline,
+          totalSteps: 2,
+          isPlaying: true,
+          canPlay: true,
+          canGoBack: step > 0,
+          canGoForward: step < 2,
+          onPlay: noop,
+          onPause: noop,
+          onNext: noop,
+          onPrevious: noop,
+          onReset: noop,
+        }),
+      ),
+    );
+  };
+  const click = async (name: string) => {
+    const button = requiredElement<HTMLButtonElement>(
+      host,
+      `button[aria-label="${name}"]`,
+    );
+    await act(async () => button.click());
+  };
+  const box = () =>
+    requiredElement(host, 'svg.visualization-svg')
+      .getAttribute('viewBox')!
+      .split(' ')
+      .map(Number);
+  try {
+    await render(1);
+    const svg = requiredElement(host, 'svg.visualization-svg');
+    const b = requiredElement(host, '[data-item-id="queue-item-1"]');
+    const base = box();
+    await click('Zoom in');
+    const zoomed = box();
+    assert.ok(zoomed[2]! < base[2]!);
+    assert.ok(zoomed[3]! < base[3]!);
+    assert.equal(zoomed[0]! + zoomed[2]! / 2, base[0]! + base[2]! / 2);
+    assert.equal(zoomed[1]! + zoomed[3]! / 2, base[1]! + base[3]! / 2);
+    await render(2);
+    await settleD3();
+    assert.deepEqual(box(), zoomed);
+    await click('Expand visualization');
+    assert.ok(host.querySelector('.visualization-panel--expanded'));
+    assert.equal(
+      host.querySelector('[role="dialog"]')?.getAttribute('aria-modal'),
+      'true',
+    );
+    assert.equal(requiredElement(host, 'svg.visualization-svg'), svg);
+    assert.equal(requiredElement(host, '[data-item-id="queue-item-1"]'), b);
+    assert.equal(
+      host.querySelector('.playback-status-current')?.textContent,
+      '2',
+    );
+    assert.ok(host.querySelector('button[aria-label="Pause playback"]'));
+    assert.deepEqual(box(), zoomed);
+    await click('Collapse visualization');
+    assert.equal(host.querySelector('.visualization-panel--expanded'), null);
+    assert.equal(requiredElement(host, '[data-item-id="queue-item-1"]'), b);
+    assert.deepEqual(box(), zoomed);
+    await click('Zoom out');
+    assert.deepEqual(box(), base);
+    await click('Expand visualization');
+    const collapse = requiredElement<HTMLButtonElement>(
+      host,
+      'button[aria-label="Collapse visualization"]',
+    );
+    collapse.focus();
+    await act(async () =>
+      collapse.dispatchEvent(
+        new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      ),
+    );
+    assert.equal(host.querySelector('.visualization-panel--expanded'), null);
+    assert.equal(document.activeElement, collapse);
+    for (let i = 0; i < 30; i++) await click('Zoom in');
+    const maxBox = box();
+    assert.ok(
+      requiredElement<HTMLButtonElement>(host, 'button[aria-label="Zoom in"]')
+        .disabled,
+    );
+    await click('Zoom in');
+    assert.deepEqual(box(), maxBox);
+    for (let i = 0; i < 30; i++) await click('Zoom out');
+    const minBox = box();
+    assert.ok(minBox.every(Number.isFinite));
+    assert.ok(minBox[2]! > 0 && minBox[3]! > 0);
+    assert.ok(
+      requiredElement<HTMLButtonElement>(host, 'button[aria-label="Zoom out"]')
+        .disabled,
+    );
+    await render(0, createInitializedScene('tree'));
+    const treeBox = box();
+    await click('Zoom in');
+    assert.ok(box()[2]! < treeBox[2]!);
+    await click('Zoom out');
+    assert.deepEqual(box(), treeBox);
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
+
+test('zoom arithmetic preserves center, clamps scale and rejects invalid geometry', () => {
+  assert.deepEqual(
+    applyZoomToViewBox([0, 0, 800, 400], 2),
+    [200, 100, 400, 200],
+  );
+  assert.deepEqual(
+    applyZoomToViewBox([0, 0, 800, 400], 0.5),
+    [-400, -200, 1600, 800],
+  );
+  assert.deepEqual(
+    applyZoomToViewBox([-100, 50, 800, 400], 2),
+    [100, 150, 400, 200],
+  );
+  assert.equal(clampZoom(1e9), 4);
+  assert.equal(clampZoom(-1e9), 0.5);
+  for (const zoom of [NaN, Infinity, -Infinity]) {
+    assert.deepEqual(
+      applyZoomToViewBox([0, 0, 800, 400], zoom),
+      [0, 0, 800, 400],
+    );
+  }
+  assert.throws(() => applyZoomToViewBox([0, 0, 0, 400], 1), RangeError);
+});
+
+test('zoom remains authoritative while natural bounds finish their transition', async () => {
+  const svg = createSvg();
+  updateVisualizationViewBox(svg, '0 0 800 400', false);
+  setVisualizationZoom(svg, 2);
+  updateVisualizationViewBox(svg, '0 0 400 200', true);
+  setVisualizationZoom(svg, 4);
+  await settleD3();
+  assert.equal(svg.getAttribute('viewBox'), '150 75 100 50');
+  updateVisualizationViewBox(svg, '0 0 800 400', true, 'after-items');
+  await settleD3(220);
+  setVisualizationZoom(svg, 2);
+  await settleD3();
+  assert.equal(svg.getAttribute('viewBox'), '200 100 400 200');
+});
 
 function createArrayScene(
   values: readonly (number | string)[],

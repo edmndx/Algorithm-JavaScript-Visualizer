@@ -1,6 +1,13 @@
 import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import type { SceneState } from '../../scene';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import {
+  clampZoom,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  ZOOM_STEP,
+  VisualizationZoomContext,
+} from '../../visualization/viewport';
 import SceneRenderer from '../../visualization/SceneRenderer';
 import PlaybackControls from './PlaybackControls';
 
@@ -35,6 +42,19 @@ export default function VisualizationPanel({
   onPrevious,
   onReset,
 }: VisualizationPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [viewport, setViewport] = useState({
+    structure: scene.structure,
+    zoom: 1,
+  });
+  if (viewport.structure !== scene.structure) {
+    setViewport({ structure: scene.structure, zoom: 1 });
+  }
+  const changeZoom = (factor: number) =>
+    setViewport((current) => ({
+      ...current,
+      zoom: clampZoom(current.zoom * factor),
+    }));
   const playbackPosition = useMemo(
     () =>
       playbackSequence === undefined
@@ -47,30 +67,83 @@ export default function VisualizationPanel({
   );
   return (
     <section
-      className="visualization-panel"
+      className={`visualization-panel${expanded ? ' visualization-panel--expanded' : ''}`}
       aria-label="Visualization canvas"
+      role={expanded ? 'dialog' : undefined}
+      aria-modal={expanded ? true : undefined}
       tabIndex={0}
+      onKeyDown={(event) => {
+        if (!expanded) return;
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          setExpanded(false);
+          event.currentTarget
+            .querySelector<HTMLButtonElement>(
+              '[aria-label="Collapse visualization"]',
+            )
+            ?.focus();
+        } else if (event.key === 'Tab') {
+          const buttons = Array.from(
+            event.currentTarget.querySelectorAll<HTMLButtonElement>(
+              'button:not(:disabled)',
+            ),
+          );
+          const first = buttons[0];
+          const last = buttons.at(-1);
+          if (
+            event.shiftKey &&
+            (document.activeElement === first ||
+              document.activeElement === event.currentTarget)
+          ) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }
+      }}
     >
       <div
         className="visualization-panel-toolbar"
         role="group"
-        aria-label="Visualization controls unavailable"
+        aria-label="Visualization controls"
       >
-        <span className="visualization-toolbar-placeholder" title="Zoom in">
-          <ZoomIn className="visualization-toolbar-icon" aria-hidden="true" />
-        </span>
-        <span className="visualization-toolbar-placeholder" title="Zoom out">
-          <ZoomOut className="visualization-toolbar-icon" aria-hidden="true" />
-        </span>
-        <span
+        <button
+          type="button"
           className="visualization-toolbar-placeholder"
-          title="Fit visualization"
+          title="Zoom in"
+          aria-label="Zoom in"
+          disabled={viewport.zoom >= MAX_ZOOM}
+          onClick={() => changeZoom(ZOOM_STEP)}
+        >
+          <ZoomIn className="visualization-toolbar-icon" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="visualization-toolbar-placeholder"
+          title="Zoom out"
+          aria-label="Zoom out"
+          disabled={viewport.zoom <= MIN_ZOOM}
+          onClick={() => changeZoom(1 / ZOOM_STEP)}
+        >
+          <ZoomOut className="visualization-toolbar-icon" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="visualization-toolbar-placeholder"
+          title={expanded ? 'Collapse visualization' : 'Expand visualization'}
+          aria-label={
+            expanded ? 'Collapse visualization' : 'Expand visualization'
+          }
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
         >
           <Maximize2
             className="visualization-toolbar-icon"
             aria-hidden="true"
           />
-        </span>
+        </button>
       </div>
 
       <div className="visualization-panel-canvas">
@@ -88,7 +161,9 @@ export default function VisualizationPanel({
             ) : null}
           </div>
         ) : null}
-        <SceneRenderer scene={scene} playbackPosition={playbackPosition} />
+        <VisualizationZoomContext.Provider value={viewport.zoom}>
+          <SceneRenderer scene={scene} playbackPosition={playbackPosition} />
+        </VisualizationZoomContext.Provider>
       </div>
 
       <PlaybackControls
