@@ -125,7 +125,6 @@ export const renderTree: D3RenderFunction<TreeSceneState> = (svg, scene) => {
         group.append('circle').attr('class', 'visualization-node');
         group.append('text').attr('class', 'visualization-value');
         group.append('text').attr('class', 'visualization-marker');
-        group.append('text').attr('class', 'visualization-node-role');
         return group;
       },
       (update) => update,
@@ -170,8 +169,4 @@ export const renderTree: D3RenderFunction<TreeSceneState> = (svg, scene) => {
     .select<SVGTextElement>('text.visualization-marker')
     .attr('y', NODE_RADIUS + 17)
     .text((node) => node.markerNames.join(', '));
-  groups
-    .select<SVGTextElement>('text.visualization-node-role')
-    .attr('y', -NODE_RADIUS - 11)
-    .text((node) => (node.isRoot ? 'ROOT' : ''));
 };

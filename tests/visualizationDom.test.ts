@@ -184,7 +184,7 @@ test('places the complete initial queue from a stable front coordinate', () => {
   );
 });
 
-test('keeps only structural labels inside sequential and keyed scenes', async () => {
+test('does not render structural role labels inside scenes', async () => {
   const stackSvg = createSvg();
   renderStack(stackSvg, {
     structure: 'stack',
@@ -221,10 +221,7 @@ test('keeps only structural labels inside sequential and keyed scenes', async ()
     true,
   );
   assert.equal(listSvg.querySelector('.visualization-node-id') === null, true);
-  assert.match(
-    requiredElement(listSvg, '.visualization-node-role').textContent ?? '',
-    /HEAD/,
-  );
+  assert.equal(listSvg.querySelector('.visualization-node-role'), null);
 
   const hashSvg = createSvg();
   renderHashTable(hashSvg, {
@@ -711,19 +708,137 @@ for (const values of [['A', 'B', 'C'], ['A']]) {
   }
 }
 
-test('labels queue endpoints FRONT and REAR', () => {
+test('keeps empty queue geometry free of structural labels', () => {
   const scene = createInitializedScene('queue');
   if (scene.structure !== 'queue') throw new Error('Expected a queue.');
   const svg = createSvg();
   renderQueue(svg, scene);
-  assert.equal(
-    requiredElement(svg, '.visualization-queue-front').textContent,
-    'FRONT',
+  assert.doesNotMatch(
+    svg.textContent ?? '',
+    /\b(FRONT|REAR|BACK|TOP|HEAD|ROOT|TAIL)\b/,
   );
-  assert.equal(
-    requiredElement(svg, '.visualization-queue-rear').textContent,
-    'REAR',
+  assert.equal(svg.querySelector('.visualization-queue-frame'), null);
+});
+
+test('queue enqueue stages only the new identity and peek keeps all geometry', async () => {
+  const result = buildTimeline([
+    { type: 'scene.init', structure: 'queue' },
+    { type: 'queue.create', values: ['A', 'B'] },
+    { type: 'queue.enqueue', value: 'C' },
+    { type: 'queue.peek' },
+  ]);
+  if (!result.ok) throw result.error;
+  const scenes = [0, 1, 2].map(
+    (step) => getPlaybackFrame(result.timeline, step).scene,
   );
+  const svg = createSvg();
+  const render = (step: number) => {
+    const scene = scenes[step];
+    if (scene?.structure !== 'queue') throw new Error('Expected queue.');
+    renderQueue(svg, scene);
+  };
+  render(0);
+  const a = requiredElement<SVGGElement>(svg, '[data-item-id="queue-item-0"]');
+  const b = requiredElement<SVGGElement>(svg, '[data-item-id="queue-item-1"]');
+  assert.equal(a.style.opacity, '1');
+  assert.equal(b.style.opacity, '1');
+  assert.equal(b.getAttribute('transform'), 'translate(62, 0)');
+  const box = svg.getAttribute('viewBox');
+  render(1);
+  const c = requiredElement<SVGGElement>(svg, '[data-item-id="queue-item-2"]');
+  assert.equal(c.getAttribute('transform'), 'translate(186, 0)');
+  assert.equal(c.style.opacity, '0');
+  assert.equal(requiredElement(svg, '[data-item-id="queue-item-0"]'), a);
+  assert.equal(requiredElement(svg, '[data-item-id="queue-item-1"]'), b);
+  assert.equal(a.getAttribute('transform'), 'translate(0, 0)');
+  assert.equal(b.getAttribute('transform'), 'translate(62, 0)');
+  await settleD3();
+  assert.equal(c.getAttribute('transform'), 'translate(124, 0)');
+  render(2);
+  assert.equal(a.classList.contains('visualization-peeked'), true);
+  assert.equal(a.getAttribute('transform'), 'translate(0, 0)');
+  assert.equal(b.getAttribute('transform'), 'translate(62, 0)');
+  assert.equal(c.getAttribute('transform'), 'translate(124, 0)');
+  assert.equal(svg.getAttribute('viewBox'), box);
+});
+
+test('queue seeks and interrupted exits reconstruct deterministically without staging', async () => {
+  const { createElement, act } = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const { default: SceneRenderer } =
+    await import('../src/visualization/SceneRenderer');
+  const result = buildTimeline([
+    { type: 'scene.init', structure: 'queue' },
+    { type: 'queue.create', values: ['A', 'B', 'C'] },
+    { type: 'queue.dequeue' },
+    { type: 'queue.enqueue', value: 'D' },
+    { type: 'queue.dequeueBack' },
+  ]);
+  if (!result.ok) throw result.error;
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const render = async (step: number, sequence: object = result.timeline) => {
+    await act(async () =>
+      root.render(
+        createElement(SceneRenderer, {
+          scene: getPlaybackFrame(result.timeline, step).scene,
+          playbackPosition: { sequence, step },
+        }),
+      ),
+    );
+  };
+  try {
+    await render(0);
+    const a = requiredElement(host, '[data-item-id="queue-item-0"]');
+    const b = requiredElement(host, '[data-item-id="queue-item-1"]');
+    await render(1);
+    assert.ok(a.parentNode !== null);
+    await render(0); // Reset during exit: same A, full opacity, correct position.
+    assert.equal(requiredElement(host, '[data-item-id="queue-item-0"]'), a);
+    assert.equal(a.getAttribute('transform'), 'translate(0, 0)');
+    await settleD3();
+    assert.ok(a.parentNode !== null);
+    await render(3); // Skips both an enqueue and a rear removal.
+    assert.equal(host.querySelectorAll('.visualization-queue-item').length, 2);
+    assert.equal(requiredElement(host, '[data-item-id="queue-item-1"]'), b);
+    assert.equal(b.getAttribute('transform'), 'translate(0, 0)');
+    await render(2); // Backwards: D is restored directly, not enqueued.
+    const d = requiredElement<SVGGElement>(
+      host,
+      '[data-item-id="queue-item-3"]',
+    );
+    assert.equal(d.getAttribute('transform'), 'translate(124, 0)');
+    assert.equal(d.style.opacity, '1');
+    await render(3, {}); // New trace identity never borrows old removal metadata.
+    assert.equal(d.parentNode, null);
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
+
+test('queue initial geometry is centered without endpoint gutters and stays fixed on removal', async () => {
+  const result = buildTimeline([
+    { type: 'scene.init', structure: 'queue' },
+    { type: 'queue.create', values: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] },
+    { type: 'queue.dequeue' },
+  ]);
+  if (!result.ok) throw result.error;
+  const initial = getPlaybackFrame(result.timeline, 0).scene;
+  const removed = getPlaybackFrame(result.timeline, 1).scene;
+  if (initial.structure !== 'queue' || removed.structure !== 'queue')
+    throw new Error('Expected queue.');
+  const svg = createSvg();
+  renderQueue(svg, initial);
+  const root = requiredElement(svg, '.visualization-queue');
+  assert.equal(root.getAttribute('transform'), 'translate(0, 76)');
+  const viewBox = svg.getAttribute('viewBox');
+  const [x, , width] = viewBox!.split(' ').map(Number);
+  assert.equal(x! + width! / 2, 245);
+  renderQueue(svg, removed);
+  await settleD3();
+  assert.equal(svg.getAttribute('viewBox'), viewBox);
 });
 
 test('does not apply an earlier queue removal direction to an unrelated seek exit', async () => {

@@ -29,6 +29,7 @@ export function updateVisualizationViewBox(
   svg: SVGSVGElement,
   target: string,
   retainPreviousBounds: boolean,
+  timing: 'retain' | 'after-items' = 'retain',
 ): void {
   const selection = select(svg);
   selection.interrupt(VISUALIZATION_VIEW_BOX_TRANSITION);
@@ -36,6 +37,17 @@ export function updateVisualizationViewBox(
   const next = parseViewBox(target);
   if (!retainPreviousBounds || previous === null || next === null) {
     selection.attr('viewBox', target);
+    return;
+  }
+
+  if (timing === 'after-items') {
+    if (serializeViewBox(previous) !== target) {
+      selection
+        .transition(VISUALIZATION_VIEW_BOX_TRANSITION)
+        .delay(VISUALIZATION_TRANSITION_MS)
+        .duration(VISUALIZATION_TRANSITION_MS)
+        .attr('viewBox', target);
+    }
     return;
   }
 

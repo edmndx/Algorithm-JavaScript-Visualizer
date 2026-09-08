@@ -775,12 +775,16 @@ for (const algorithm of algorithmCatalog) {
     const host = document.createElement('div');
     document.body.append(host);
     const root = createRoot(host);
-    const representativeSteps = new Set([
-      0,
-      Math.min(1, timeline.operationCount),
-      Math.floor(timeline.operationCount / 2),
-      timeline.operationCount,
-    ]);
+    const representativeSteps = new Set(
+      algorithm.structure === 'queue'
+        ? [...frames.map((_, index) => index), 0, timeline.operationCount]
+        : [
+            0,
+            Math.min(1, timeline.operationCount),
+            Math.floor(timeline.operationCount / 2),
+            timeline.operationCount,
+          ],
+    );
     let previousEntities: ReadonlyMap<string, Element> = new Map();
 
     try {
@@ -789,7 +793,12 @@ for (const algorithm of algorithmCatalog) {
         assert.ok(scene !== undefined);
         if (scene === undefined || scene.structure === null) continue;
         await act(async () => {
-          root.render(createElement(SceneRenderer, { scene }));
+          root.render(
+            createElement(SceneRenderer, {
+              scene,
+              playbackPosition: { sequence: timeline, step },
+            }),
+          );
         });
         const svg = host.querySelector<SVGSVGElement>('svg.visualization-svg');
         assert.ok(svg !== null);
@@ -797,6 +806,12 @@ for (const algorithm of algorithmCatalog) {
           svg.querySelector(`g.visualization-${scene.structure}`) !== null,
         );
         await settleD3();
+        assert.equal(
+          svg.querySelector(
+            '.visualization-node-role, .visualization-queue-direction',
+          ),
+          null,
+        );
         assertRenderedEntities(svg, scene);
         const currentEntities = renderedEntityMap(svg, scene);
         for (const [id, element] of currentEntities) {
