@@ -189,6 +189,7 @@ export function MainPage() {
           <section className="main-page-workspace-content">
             <VisualizationPanel
               scene={playback.scene}
+              playbackSequence={playback.commands}
               currentStep={playback.currentStep}
               totalSteps={playback.totalSteps}
               isPlaying={playback.isPlaying}

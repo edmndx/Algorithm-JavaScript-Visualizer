@@ -1,5 +1,5 @@
 import type { SceneState } from '../scene';
-import D3Scene from './D3Scene';
+import D3Scene, { type PlaybackPosition } from './D3Scene';
 import { renderArray } from './renderArray';
 import { renderGraph } from './renderGraph';
 import { renderHashTable } from './renderHashTable';
@@ -12,9 +12,13 @@ import { getVisualizationCapacityMessage } from './visualizationLimits';
 
 type SceneRendererProps = {
   readonly scene: SceneState;
+  readonly playbackPosition?: PlaybackPosition;
 };
 
-export default function SceneRenderer({ scene }: SceneRendererProps) {
+export default function SceneRenderer({
+  scene,
+  playbackPosition,
+}: SceneRendererProps) {
   if (scene.structure === null) {
     return (
       <p className="visualization-empty-state">Nothing to visualize yet.</p>
@@ -59,6 +63,7 @@ export default function SceneRenderer({ scene }: SceneRendererProps) {
         <D3Scene
           key={scene.structure}
           label="Queue visualization"
+          playbackPosition={playbackPosition}
           render={renderQueue}
           scene={scene}
         />

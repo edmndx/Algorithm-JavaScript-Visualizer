@@ -266,7 +266,6 @@ export const renderLinkedList: D3RenderFunction<LinkedListSceneState> = (
         group.append('rect').attr('class', 'visualization-node');
         group.append('text').attr('class', 'visualization-value');
         group.append('text').attr('class', 'visualization-marker');
-        group.append('text').attr('class', 'visualization-node-role');
         return group;
       },
       (update) => update,
@@ -320,13 +319,4 @@ export const renderLinkedList: D3RenderFunction<LinkedListSceneState> = (
     .attr('x', NODE_WIDTH / 2)
     .attr('y', NODE_HEIGHT + 20)
     .text((positioned) => positioned.markerNames.join(', '));
-  groups
-    .select<SVGTextElement>('text.visualization-node-role')
-    .attr('x', NODE_WIDTH / 2)
-    .attr('y', -14)
-    .text((positioned) =>
-      [positioned.isHead && 'HEAD', positioned.isTail && 'TAIL']
-        .filter(Boolean)
-        .join(' · '),
-    );
 };
