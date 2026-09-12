@@ -1275,6 +1275,7 @@ function validateQueueTrace(
         break;
 
       case 'queue.dequeue':
+      case 'queue.dequeueBack':
         if (queueLength === 0) {
           addIssue(
             issues,
@@ -1371,7 +1372,7 @@ function validateLinkedListTrace(
     state.nodes.set(node.id, node);
   }
 
-  validateLinkedListTopology(state, 1, issues);
+  validateLinkedListTopology(state, 1, issues, true);
 
   for (
     let commandIndex = 2;
@@ -1584,13 +1585,14 @@ function validateLinkedListTrace(
     }
   }
 
-  validateLinkedListTopology(state, commands.length - 1, issues);
+  validateLinkedListTopology(state, commands.length - 1, issues, false);
 }
 
 function validateLinkedListTopology(
   state: LinkedListSemanticState,
   commandIndex: number,
   issues: TraceSemanticIssue[],
+  allowTwoInitialComponents: boolean,
 ): void {
   if (state.nodes.size === 0) {
     if (state.headId !== null || state.tailId !== null) {
@@ -1635,7 +1637,12 @@ function validateLinkedListTopology(
   if (isCircularLinkedList(state.kind)) {
     validateCircularLinkedList(state, commandIndex, issues);
   } else {
-    validateLinearLinkedList(state, commandIndex, issues);
+    validateLinearLinkedList(
+      state,
+      commandIndex,
+      issues,
+      allowTwoInitialComponents && state.kind === 'singly',
+    );
   }
 
   if (isDoublyLinkedList(state.kind)) {
@@ -1647,6 +1654,7 @@ function validateLinearLinkedList(
   state: LinkedListSemanticState,
   commandIndex: number,
   issues: TraceSemanticIssue[],
+  allowTwoComponents: boolean,
 ): void {
   if (state.headId === null || state.tailId === null) {
     return;
@@ -1688,7 +1696,14 @@ function validateLinearLinkedList(
     );
   }
 
-  if (visited.size !== state.nodes.size) {
+  if (
+    visited.size !== state.nodes.size &&
+    !(
+      allowTwoComponents &&
+      lastId === state.tailId &&
+      formsOneDetachedLinearComponent(state.nodes, visited)
+    )
+  ) {
     addIssue(
       issues,
       commandIndex,
@@ -1696,6 +1711,44 @@ function validateLinearLinkedList(
       'Not every linked-list node is reachable from the head.',
     );
   }
+}
+
+function formsOneDetachedLinearComponent(
+  nodes: LinkedListSemanticState['nodes'],
+  primaryIds: ReadonlySet<string>,
+): boolean {
+  const detachedIds = new Set(
+    [...nodes.keys()].filter((nodeId) => !primaryIds.has(nodeId)),
+  );
+  if (detachedIds.size === 0) return false;
+
+  const incomingCounts = new Map([...detachedIds].map((nodeId) => [nodeId, 0]));
+  for (const nodeId of detachedIds) {
+    const nextId = nodes.get(nodeId)?.nextId;
+    if (nextId === null) continue;
+    if (nextId === undefined || !detachedIds.has(nextId)) return false;
+
+    const incomingCount = (incomingCounts.get(nextId) ?? 0) + 1;
+    if (incomingCount > 1) return false;
+    incomingCounts.set(nextId, incomingCount);
+  }
+
+  const roots = [...incomingCounts].filter(([, count]) => count === 0);
+  const rootId = roots[0]?.[0];
+  if (roots.length !== 1 || rootId === undefined) return false;
+
+  const visited = new Set<string>();
+  let currentId: string | null = rootId;
+  while (currentId !== null) {
+    if (visited.has(currentId)) return false;
+    const node = nodes.get(currentId);
+    if (node === undefined || !detachedIds.has(currentId)) return false;
+
+    visited.add(currentId);
+    currentId = node.nextId;
+  }
+
+  return visited.size === detachedIds.size;
 }
 
 function validateCircularLinkedList(

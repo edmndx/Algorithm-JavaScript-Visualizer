@@ -70,15 +70,6 @@ export const renderTree: D3RenderFunction<TreeSceneState> = (svg, scene) => {
     .join('g')
     .attr('class', 'visualization-tree');
 
-  root
-    .selectAll<SVGTextElement, null>('text.visualization-empty-structure')
-    .data(nodes.length === 0 ? [null] : [])
-    .join('text')
-    .attr('class', 'visualization-empty-structure')
-    .attr('x', layout.width / 2)
-    .attr('y', layout.height / 2)
-    .text('EMPTY TREE');
-
   const linkPaths = root
     .selectAll<SVGPathElement, PositionedTreeLink>(
       'path.visualization-tree-link',

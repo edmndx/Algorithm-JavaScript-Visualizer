@@ -162,6 +162,7 @@ test('places the complete initial queue from a stable front coordinate', () => {
     values: ['A', 'B', 'C'],
     itemIds: ['queue-item-0', 'queue-item-1', 'queue-item-2'],
     nextItemId: 3,
+    lastRemoval: null,
     peekedIndex: null,
     markers: {},
   };
@@ -200,10 +201,7 @@ test('keeps only structural labels inside sequential and keyed scenes', async ()
     stackSvg.querySelector('.visualization-stack-size') === null,
     true,
   );
-  assert.equal(
-    requiredElement(stackSvg, '.visualization-stack-top').textContent,
-    'TOP',
-  );
+  assert.equal(stackSvg.querySelector('.visualization-stack-top'), null);
 
   const listSvg = createSvg();
   renderLinkedList(listSvg, {
@@ -249,6 +247,54 @@ test('keeps only structural labels inside sequential and keyed scenes', async ()
     hashSvg.querySelectorAll('.visualization-hash-bucket').length,
     2,
   );
+});
+
+test('does not render empty-state text inside structure diagrams', () => {
+  const scenes: readonly SceneState[] = [
+    createInitializedScene('array'),
+    createInitializedScene('matrix'),
+    createInitializedScene('stack'),
+    createInitializedScene('queue'),
+    createInitializedScene('linked-list'),
+    createInitializedScene('hash-table'),
+    createInitializedScene('tree'),
+    createInitializedScene('graph'),
+  ];
+
+  for (const scene of scenes) {
+    const svg = createSvg();
+    switch (scene.structure) {
+      case null:
+        throw new Error('Expected an initialized structure scene.');
+      case 'array':
+        renderArray(svg, scene);
+        break;
+      case 'matrix':
+        renderMatrix(svg, scene);
+        break;
+      case 'stack':
+        renderStack(svg, scene);
+        break;
+      case 'queue':
+        renderQueue(svg, scene);
+        break;
+      case 'linked-list':
+        renderLinkedList(svg, scene);
+        break;
+      case 'hash-table':
+        renderHashTable(svg, scene);
+        break;
+      case 'tree':
+        renderTree(svg, scene);
+        break;
+      case 'graph':
+        renderGraph(svg, scene);
+        break;
+    }
+
+    assert.equal(svg.querySelector('.visualization-empty-structure'), null);
+    assert.doesNotMatch(svg.textContent ?? '', /EMPTY/);
+  }
 });
 
 test('renders signed array bars around a visible zero baseline', async () => {
@@ -606,6 +652,106 @@ test('renders queue dequeue by removing the front identity and moving survivors'
     ),
     'translate(124, 0)',
   );
+});
+
+for (const values of [['A', 'B', 'C'], ['A']]) {
+  for (const removal of ['queue.dequeue', 'queue.dequeueBack'] as const) {
+    test(`${removal} exits through its own end with ${values.length} queue items`, async () => {
+      const result = buildTimeline(
+        [
+          { type: 'scene.init', structure: 'queue' },
+          { type: 'queue.create', values },
+          { type: removal },
+        ],
+        1,
+      );
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      const initial = getPlaybackFrame(result.timeline, 0).scene;
+      const removed = getPlaybackFrame(result.timeline, 1).scene;
+      if (initial.structure !== 'queue' || removed.structure !== 'queue') {
+        throw new Error('Expected queue frames.');
+      }
+
+      const svg = createSvg();
+      renderQueue(svg, initial);
+      await settleD3();
+      const removedIndex = removal === 'queue.dequeue' ? 0 : values.length - 1;
+      const exiting = requiredElement(
+        svg,
+        `[data-item-id="queue-item-${removedIndex}"]`,
+      );
+      const survivors = removed.itemIds.map((id) =>
+        requiredElement(svg, `[data-item-id="${id}"]`),
+      );
+      const initialX = Number(
+        exiting.getAttribute('transform')?.match(/translate\(([-\d.]+)/)?.[1],
+      );
+
+      renderQueue(svg, removed);
+      assert.equal(exiting.parentNode !== null, true);
+      await settleD3();
+      // Retain the detached node to inspect the real transition's final position.
+      const finalX = Number(
+        exiting.getAttribute('transform')?.match(/translate\(([-\d.]+)/)?.[1],
+      );
+      assert.ok(Number.isFinite(initialX) && Number.isFinite(finalX));
+      assert.ok(
+        removal === 'queue.dequeue' ? finalX < initialX : finalX > initialX,
+        `${removal} moved from ${initialX} to ${finalX}`,
+      );
+      assert.equal(exiting.parentNode, null);
+      for (const [index, id] of removed.itemIds.entries()) {
+        assert.equal(
+          requiredElement(svg, `[data-item-id="${id}"]`),
+          survivors[index],
+        );
+      }
+    });
+  }
+}
+
+test('labels queue endpoints FRONT and REAR', () => {
+  const scene = createInitializedScene('queue');
+  if (scene.structure !== 'queue') throw new Error('Expected a queue.');
+  const svg = createSvg();
+  renderQueue(svg, scene);
+  assert.equal(
+    requiredElement(svg, '.visualization-queue-front').textContent,
+    'FRONT',
+  );
+  assert.equal(
+    requiredElement(svg, '.visualization-queue-rear').textContent,
+    'REAR',
+  );
+});
+
+test('does not apply an earlier queue removal direction to an unrelated seek exit', async () => {
+  const result = buildTimeline([
+    { type: 'scene.init', structure: 'queue' },
+    { type: 'queue.create', values: ['A', 'B'] },
+    { type: 'queue.dequeueBack' },
+    { type: 'queue.enqueue', value: 'C' },
+  ]);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const beforeEnqueue = getPlaybackFrame(result.timeline, 1).scene;
+  const afterEnqueue = getPlaybackFrame(result.timeline, 2).scene;
+  if (
+    beforeEnqueue.structure !== 'queue' ||
+    afterEnqueue.structure !== 'queue'
+  ) {
+    throw new Error('Expected queue frames.');
+  }
+  const svg = createSvg();
+  renderQueue(svg, afterEnqueue);
+  await settleD3();
+  const unrelatedExit = requiredElement(svg, '[data-item-id="queue-item-2"]');
+  const position = unrelatedExit.getAttribute('transform');
+  renderQueue(svg, beforeEnqueue);
+  await settleD3();
+  assert.equal(unrelatedExit.parentNode, null);
+  assert.equal(unrelatedExit.getAttribute('transform'), position);
 });
 
 test('updates linked-list nodes and edges without retaining removed topology', async () => {
@@ -1252,6 +1398,7 @@ test('SceneRenderer runs D3 effects and cleans interrupted structure changes', a
     values: ['A', 'B'],
     itemIds: ['queue-item-0', 'queue-item-1'],
     nextItemId: 2,
+    lastRemoval: null,
     peekedIndex: null,
     markers: {},
   };

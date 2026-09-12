@@ -88,17 +88,7 @@ export const renderQueue: D3RenderFunction<QueueSceneState> = (svg, scene) => {
     .attr('text-anchor', (direction) =>
       direction === 'front' ? 'end' : 'start',
     )
-    .text((direction) => (direction === 'front' ? 'HEAD' : 'TAIL'));
-
-  root
-    .selectAll<SVGTextElement, null>('text.visualization-empty-structure')
-    .data(items.length === 0 ? [null] : [])
-    .join('text')
-    .attr('class', 'visualization-empty-structure')
-    .attr('x', contentWidth / 2)
-    .attr('y', ITEM_HEIGHT / 2)
-    .attr('dy', '0.35em')
-    .text('EMPTY');
+    .text((direction) => (direction === 'front' ? 'FRONT' : 'REAR'));
 
   const groups = root
     .selectAll<SVGGElement, QueueItemDatum>('g.visualization-queue-item')
@@ -120,18 +110,28 @@ export const renderQueue: D3RenderFunction<QueueSceneState> = (svg, scene) => {
         return group;
       },
       (update) => update,
-      (exit) =>
-        exit
+      (exit) => {
+        const transition = exit
           .transition()
           .duration(VISUALIZATION_TRANSITION_MS)
+          .style('opacity', 0)
+          .remove();
+        // Seeks may remove unrelated identities; fade those without guessing an end.
+        transition
+          .filter((item) => item.id === scene.lastRemoval?.itemId)
           .attrTween(
             'transform',
             createTransformTween<QueueItemDatum>(
-              () => `translate(${-ITEM_WIDTH - ITEM_GAP}, 0)`,
+              (item) =>
+                `translate(${
+                  scene.lastRemoval?.end === 'rear'
+                    ? (item.index + 1) * (ITEM_WIDTH + ITEM_GAP)
+                    : -ITEM_WIDTH - ITEM_GAP
+                }, 0)`,
             ),
-          )
-          .style('opacity', 0)
-          .remove(),
+          );
+        return transition;
+      },
     )
     .attr('data-item-id', (item) => item.id)
     .classed('visualization-peeked', (item) => item.isPeeked)
