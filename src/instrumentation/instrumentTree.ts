@@ -53,14 +53,15 @@ export function instrumentTree(
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const candidates = findTreeDeclarations(program, contract.identifier)
-    .map(({ declaration, nodes }) => analyzeTree(program, declaration, nodes))
-    .filter((candidate): candidate is TreeCandidate => candidate !== null);
+  const declaration = contract.declaration;
+  const initializer = declaration.declarations[0]?.init;
+  if (initializer?.type !== 'ObjectExpression') return null;
 
-  if (candidates.length !== 1) return null;
+  const nodes = readStaticTree(initializer, contract.identifier, { nextId: 0 });
+  if (nodes === null) return null;
 
-  const candidate = candidates[0];
-  if (candidate === undefined) return null;
+  const candidate = analyzeTree(program, declaration, nodes);
+  if (candidate === null) return null;
 
   const allocateIdentifier = createIdentifierAllocator(program, '__traceTree');
   const nodeIds = allocateIdentifier();
@@ -94,38 +95,6 @@ export function instrumentTree(
   ];
 
   return applySourceEdits(source, edits);
-}
-
-function findTreeDeclarations(
-  program: Program,
-  identifier: string,
-): Array<{
-  readonly declaration: VariableDeclaration;
-  readonly nodes: readonly StaticTreeNode[];
-}> {
-  return program.body.flatMap((statement) => {
-    if (
-      statement.type !== 'VariableDeclaration' ||
-      statement.kind !== 'const' ||
-      statement.declarations.length !== 1
-    ) {
-      return [];
-    }
-
-    const declarator = statement.declarations[0];
-    if (
-      declarator?.id.type !== 'Identifier' ||
-      declarator.id.name !== identifier ||
-      declarator.init?.type !== 'ObjectExpression'
-    ) {
-      return [];
-    }
-
-    const nodes = readStaticTree(declarator.init, declarator.id.name, {
-      nextId: 0,
-    });
-    return nodes === null ? [] : [{ declaration: statement, nodes }];
-  });
 }
 
 function readStaticTree(

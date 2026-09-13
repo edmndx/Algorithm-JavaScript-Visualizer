@@ -54,12 +54,15 @@ export function instrumentGraph(
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const candidates = findGraphDeclarations(program, contract.identifier)
-    .map(({ declaration, nodes }) => analyzeGraph(contract, declaration, nodes))
-    .filter((candidate): candidate is GraphCandidate => candidate !== null);
+  const declaration = contract.declaration;
+  const initializer = declaration.declarations[0]?.init;
+  if (initializer?.type !== 'ObjectExpression') return null;
 
-  const candidate = candidates[0];
-  if (candidates.length !== 1 || candidate === undefined) return null;
+  const nodes = readStaticGraph(initializer);
+  if (nodes === null) return null;
+
+  const candidate = analyzeGraph(contract, declaration, nodes);
+  if (candidate === null) return null;
 
   const traceNodes = candidate.nodes
     .map(
@@ -107,36 +110,6 @@ export function instrumentGraph(
   ];
 
   return applySourceEdits(source, edits);
-}
-
-function findGraphDeclarations(
-  program: Program,
-  identifier: string,
-): Array<{
-  readonly declaration: VariableDeclaration;
-  readonly nodes: readonly StaticGraphNode[];
-}> {
-  return program.body.flatMap((statement) => {
-    if (
-      statement.type !== 'VariableDeclaration' ||
-      statement.kind !== 'const' ||
-      statement.declarations.length !== 1
-    ) {
-      return [];
-    }
-
-    const declarator = statement.declarations[0];
-    if (
-      declarator?.id.type !== 'Identifier' ||
-      declarator.id.name !== identifier ||
-      declarator.init?.type !== 'ObjectExpression'
-    ) {
-      return [];
-    }
-
-    const nodes = readStaticGraph(declarator.init);
-    return nodes === null ? [] : [{ declaration: statement, nodes }];
-  });
 }
 
 function readStaticGraph(
