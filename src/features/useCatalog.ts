@@ -3,7 +3,7 @@ import {
   algorithmCatalog,
   algorithmCategories,
   type AlgorithmCategory,
-} from './loadData';
+} from '../data/catalog';
 
 export function useCatalog() {
   const [searchQuery, setSearchQuery] = useState('');

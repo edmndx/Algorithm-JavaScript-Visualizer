@@ -1,6 +1,6 @@
 import { ChevronDown, FileDown, FileText, FileUp, Play } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { AlgorithmCatalogEntry } from '../../features/loadData';
+import type { AlgorithmCatalogEntry } from '../../data/catalog';
 import AlgorithmTreeLogo from './AlgorithmTreeLogo';
 
 interface AppHeaderProps {

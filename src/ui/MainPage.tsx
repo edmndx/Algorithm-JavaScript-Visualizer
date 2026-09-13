@@ -2,10 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import '../assets/MainPage.css';
 import '../visualization/visualization.css';
-import {
-  algorithmCatalog,
-  type AlgorithmCatalogEntry,
-} from '../features/loadData';
+import { algorithmCatalog, type AlgorithmCatalogEntry } from '../data/catalog';
 import { createTraceOperationEntries } from '../features/traceConsole';
 import {
   createTraceOwnership,

@@ -45,14 +45,6 @@ export const algorithmCatalogSchema = z
     });
   });
 
-export const commandChipSchema = z.strictObject({
-  label: z.string().trim().min(1, 'Command-chip label is required.'),
-  command: z.string().trim().min(1, 'Command-chip command is required.'),
-});
-
-export const commandChipsSchema = z.array(commandChipSchema);
-
 export type AlgorithmCategory = z.infer<typeof algorithmCategorySchema>;
 export type AlgorithmId = z.infer<typeof algorithmIdSchema>;
 export type AlgorithmCatalogEntry = z.infer<typeof algorithmCatalogEntrySchema>;
-export type CommandChip = z.infer<typeof commandChipSchema>;

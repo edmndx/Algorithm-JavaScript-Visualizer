@@ -2,9 +2,9 @@ import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useCatalog } from '../../features/useCatalog';
 
 type CatalogSidebarProps = {
-  activeAlgorithmId: import('../../features/loadData').AlgorithmId | null;
+  activeAlgorithmId: import('../../data/catalog').AlgorithmId | null;
   onSelectAlgorithm: (
-    algorithm: import('../../features/loadData').AlgorithmCatalogEntry,
+    algorithm: import('../../data/catalog').AlgorithmCatalogEntry,
   ) => void;
 };
 
@@ -24,7 +24,7 @@ export default function CatalogSidebar({
   const hasSearchQuery = searchQuery.trim().length > 0;
 
   function renderAlgorithmList(
-    algorithmsToRender: readonly import('../../features/loadData').AlgorithmCatalogEntry[],
+    algorithmsToRender: readonly import('../../data/catalog').AlgorithmCatalogEntry[],
   ) {
     return (
       <ul className="catalog-sidebar-algorithm-list">

@@ -30,7 +30,6 @@ The trace is validated, prepared for playback, and rendered step by step.
 - Load starter JavaScript code for selected algorithms.
 - Edit code in a Monaco-based editor.
 - Work with multiple editor tabs.
-- Build custom visualizations using data structure and algorithm command chips.
 - Run edited or custom JavaScript code through the runner.
 - Validate code before execution.
 - Generate JSON-based visualization traces.
