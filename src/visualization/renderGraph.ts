@@ -1,18 +1,20 @@
 import { select } from 'd3';
 
 import type { GraphSceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
 import {
   createGraphLayout,
   type PositionedGraphEdge,
   type PositionedGraphNode,
 } from './graphLayout';
+import { indexMarkerNames } from './indexMarkerNames';
 import {
   createStringAttributeTween,
   createTransformTween,
 } from './transformTween';
 import { VISUALIZATION_READABILITY_LIMITS } from './visualizationLimits';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
 
 type RenderedGraphNode = PositionedGraphNode & {
   readonly markerNames: readonly string[];
@@ -234,23 +236,8 @@ export function createGraphViewBox(
 
 export const renderGraph: D3RenderFunction<GraphSceneState> = (svg, scene) => {
   const layout = createGraphLayout(scene);
-  const nodeMarkerNames = new Map<string, string[]>();
-  const edgeMarkerNames = new Map<string, string[]>();
-
-  for (const [name, nodeIds] of Object.entries(scene.nodeMarkers)) {
-    for (const nodeId of nodeIds) {
-      const names = nodeMarkerNames.get(nodeId) ?? [];
-      names.push(name);
-      nodeMarkerNames.set(nodeId, names);
-    }
-  }
-  for (const [name, edgeIds] of Object.entries(scene.edgeMarkers)) {
-    for (const edgeId of edgeIds) {
-      const names = edgeMarkerNames.get(edgeId) ?? [];
-      names.push(name);
-      edgeMarkerNames.set(edgeId, names);
-    }
-  }
+  const nodeMarkerNames = indexMarkerNames(scene.nodeMarkers);
+  const edgeMarkerNames = indexMarkerNames(scene.edgeMarkers);
 
   const visitedNodeIds = new Set(scene.visitedNodeIds);
   const visitedEdgeIds = new Set(scene.visitedEdgeIds);

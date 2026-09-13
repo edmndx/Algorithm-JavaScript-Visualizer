@@ -5,8 +5,6 @@ import { setVisualizationZoom } from './viewBoxTransition';
 
 import { VISUALIZATION_VIEW_BOX_TRANSITION } from './visualizationTransition';
 
-export { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
-
 type VisualScene = {
   readonly isPlaceholder?: true;
 };

@@ -1,12 +1,14 @@
 import { select } from 'd3';
 
 import type { LinkedListSceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
+import { indexMarkerNames } from './indexMarkerNames';
 import {
   createStringAttributeTween,
   createTransformTween,
 } from './transformTween';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
 
 type LinkedListNode = LinkedListSceneState['nodes'][number];
 
@@ -103,14 +105,7 @@ export const renderLinkedList: D3RenderFunction<LinkedListSceneState> = (
   svg,
   scene,
 ) => {
-  const markerNames = new Map<string, string[]>();
-  for (const [name, nodeIds] of Object.entries(scene.markers)) {
-    for (const nodeId of nodeIds) {
-      const names = markerNames.get(nodeId) ?? [];
-      names.push(name);
-      markerNames.set(nodeId, names);
-    }
-  }
+  const markerNames = indexMarkerNames(scene.markers);
 
   const visitedIds = new Set(scene.visitedNodeIds);
   const positionedNodes: readonly PositionedLinkedListNode[] =

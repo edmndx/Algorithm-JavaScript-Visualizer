@@ -1,9 +1,11 @@
 import { select } from 'd3';
 
 import type { QueueSceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
+import { indexMarkerNames } from './indexMarkerNames';
 import { createTransformTween } from './transformTween';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
 
 type QueueItemDatum = {
   readonly id: string;
@@ -67,14 +69,7 @@ export const renderQueue: D3RenderFunction<QueueSceneState> = (
   const adjacent =
     mayAnimate && (enqueue || removal || sameIds(previous.scene.itemIds));
   selection.selectAll('*').interrupt();
-  const markerNames = new Map<number, string[]>();
-  for (const [name, indices] of Object.entries(scene.markers)) {
-    for (const index of indices) {
-      const names = markerNames.get(index) ?? [];
-      names.push(name);
-      markerNames.set(index, names);
-    }
-  }
+  const markerNames = indexMarkerNames(scene.markers);
 
   const items: readonly QueueItemDatum[] = scene.values.map((value, index) => {
     const id = scene.itemIds[index];

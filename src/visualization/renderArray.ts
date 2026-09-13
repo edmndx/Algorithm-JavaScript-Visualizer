@@ -1,9 +1,11 @@
 import { scaleLinear, select } from 'd3';
 
 import type { ArraySceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
+import { indexMarkerNames } from './indexMarkerNames';
 import { createTransformTween } from './transformTween';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
 
 type ArrayItemDatum = {
   readonly id: string;
@@ -25,22 +27,6 @@ const HORIZONTAL_PADDING = 40;
 const TOP_PADDING = 48;
 const BOTTOM_PADDING = 62;
 
-function collectMarkerNames(
-  markers: ArraySceneState['markers'],
-): ReadonlyMap<number, readonly string[]> {
-  const namesByIndex = new Map<number, string[]>();
-
-  for (const [name, indices] of Object.entries(markers)) {
-    for (const index of indices) {
-      const names = namesByIndex.get(index) ?? [];
-      names.push(name);
-      namesByIndex.set(index, names);
-    }
-  }
-
-  return namesByIndex;
-}
-
 function arrayValueY(datum: ArrayItemDatum, baselineY: number): number {
   if (datum.valueKind === 'nonnumeric') {
     return datum.y + datum.height / 2;
@@ -49,7 +35,7 @@ function arrayValueY(datum: ArrayItemDatum, baselineY: number): number {
 }
 
 export const renderArray: D3RenderFunction<ArraySceneState> = (svg, scene) => {
-  const markerNames = collectMarkerNames(scene.markers);
+  const markerNames = indexMarkerNames(scene.markers);
   const comparedIndices = new Set(scene.comparedIndices ?? []);
   const numericValues = scene.values.filter(
     (value): value is number => typeof value === 'number',

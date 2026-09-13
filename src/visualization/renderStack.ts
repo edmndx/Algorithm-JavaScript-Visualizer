@@ -1,9 +1,11 @@
 import { select } from 'd3';
 
 import type { StackSceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
+import { indexMarkerNames } from './indexMarkerNames';
 import { createTransformTween } from './transformTween';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
 
 type StackItemDatum = {
   readonly id: string;
@@ -28,14 +30,7 @@ function stackItemTransform(index: number): string {
 }
 
 export const renderStack: D3RenderFunction<StackSceneState> = (svg, scene) => {
-  const markerNames = new Map<number, string[]>();
-  for (const [name, indices] of Object.entries(scene.markers)) {
-    for (const index of indices) {
-      const names = markerNames.get(index) ?? [];
-      names.push(name);
-      markerNames.set(index, names);
-    }
-  }
+  const markerNames = indexMarkerNames(scene.markers);
 
   const topIndex = scene.values.length - 1;
   const items: readonly StackItemDatum[] = scene.values.map((value, index) => {
