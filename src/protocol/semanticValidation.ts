@@ -1,15 +1,10 @@
 import type {
-  GraphEdge,
   GraphLayout,
-  GraphNode,
-  HashTableEntry,
   LinkedListKind,
-  LinkedListNode,
   TraceCommand,
   TraceSourceLocation,
   TraceStructure,
   TraceValue,
-  TreeNode,
 } from './traceTypes';
 
 /* -------------------------------------------------------------------------- */
@@ -90,27 +85,54 @@ export type TraceSemanticValidationResult =
 /* Semantic state                                                              */
 /* -------------------------------------------------------------------------- */
 
+type TreeSemanticNode = {
+  readonly id: string;
+  readonly children: readonly string[];
+};
+
 type TreeSemanticState = {
   rootId: string | null;
-  nodes: Map<string, TreeNode>;
+  nodes: Map<string, TreeSemanticNode>;
+};
+
+type GraphSemanticNode = {
+  readonly id: string;
+};
+
+type GraphSemanticEdge = {
+  readonly id: string;
+  readonly from: string;
+  readonly to: string;
 };
 
 type GraphSemanticState = {
   layout: GraphLayout;
-  nodes: Map<string, GraphNode>;
-  edges: Map<string, GraphEdge>;
+  nodes: Map<string, GraphSemanticNode>;
+  edges: Map<string, GraphSemanticEdge>;
+};
+
+type LinkedListSemanticNode = {
+  readonly id: string;
+  readonly nextId: string | null;
+  readonly previousId?: string | null;
 };
 
 type LinkedListSemanticState = {
   kind: LinkedListKind;
   headId: string | null;
   tailId: string | null;
-  nodes: Map<string, LinkedListNode>;
+  nodes: Map<string, LinkedListSemanticNode>;
+};
+
+type HashTableSemanticEntry = {
+  readonly id: string;
+  readonly key: TraceValue;
+  readonly bucketIndex: number;
 };
 
 type HashTableSemanticState = {
   bucketCount: number;
-  entries: Map<string, HashTableEntry>;
+  entries: Map<string, HashTableSemanticEntry>;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -424,7 +446,10 @@ function validateTreeTrace(
       continue;
     }
 
-    state.nodes.set(node.id, node);
+    state.nodes.set(node.id, {
+      id: node.id,
+      children: node.children,
+    });
   }
 
   validateTreeTopology(state, 1, issues, true, true);
@@ -470,7 +495,10 @@ function validateTreeTrace(
           break;
         }
 
-        state.nodes.set(command.node.id, command.node);
+        state.nodes.set(command.node.id, {
+          id: command.node.id,
+          children: command.node.children,
+        });
 
         validateTreeTopology(state, commandIndex, issues, false, false);
         break;
@@ -525,21 +553,11 @@ function validateTreeTrace(
         break;
       }
 
-      case 'tree.setValue': {
-        const node = state.nodes.get(command.nodeId);
-
-        if (node === undefined) {
+      case 'tree.setValue':
+        if (!state.nodes.has(command.nodeId)) {
           addTreeNodeNotFoundIssue(issues, commandIndex, command.nodeId);
-
-          break;
         }
-
-        state.nodes.set(command.nodeId, {
-          ...node,
-          value: command.value,
-        });
         break;
-      }
 
       case 'tree.compare':
       case 'tree.swapValues':
@@ -549,26 +567,6 @@ function validateTreeTrace(
           }
         }
 
-        if (
-          command.type === 'tree.swapValues' &&
-          state.nodes.has(command.nodeIds[0]) &&
-          state.nodes.has(command.nodeIds[1])
-        ) {
-          const firstNode = state.nodes.get(command.nodeIds[0]);
-          const secondNode = state.nodes.get(command.nodeIds[1]);
-
-          if (firstNode !== undefined && secondNode !== undefined) {
-            state.nodes.set(firstNode.id, {
-              ...firstNode,
-              value: secondNode.value,
-            });
-
-            state.nodes.set(secondNode.id, {
-              ...secondNode,
-              value: firstNode.value,
-            });
-          }
-        }
         break;
 
       case 'tree.visit':
@@ -723,7 +721,9 @@ function validateTreeTopology(
   }
 }
 
-function treeContainsCycle(nodes: ReadonlyMap<string, TreeNode>): boolean {
+function treeContainsCycle(
+  nodes: ReadonlyMap<string, TreeSemanticNode>,
+): boolean {
   const completed = new Set<string>();
 
   for (const startId of nodes.keys()) {
@@ -766,7 +766,7 @@ function treeContainsCycle(nodes: ReadonlyMap<string, TreeNode>): boolean {
 }
 
 function collectReachableTreeNodes(
-  nodes: ReadonlyMap<string, TreeNode>,
+  nodes: ReadonlyMap<string, TreeSemanticNode>,
   rootId: string,
 ): Set<string> {
   const reachable = new Set<string>();
@@ -796,7 +796,7 @@ function collectReachableTreeNodes(
 }
 
 function isTreeNodeReferenced(
-  nodes: ReadonlyMap<string, TreeNode>,
+  nodes: ReadonlyMap<string, TreeSemanticNode>,
   nodeId: string,
 ): boolean {
   for (const node of nodes.values()) {
@@ -842,7 +842,7 @@ function validateGraphTrace(
       continue;
     }
 
-    state.nodes.set(node.id, node);
+    state.nodes.set(node.id, { id: node.id });
   }
 
   for (const edge of createCommand.edges) {
@@ -858,7 +858,11 @@ function validateGraphTrace(
     }
 
     if (validateGraphEdgeReferences(edge, state.nodes, 1, issues)) {
-      state.edges.set(edge.id, edge);
+      state.edges.set(edge.id, {
+        id: edge.id,
+        from: edge.from,
+        to: edge.to,
+      });
     }
   }
 
@@ -916,7 +920,7 @@ function validateGraphTrace(
           break;
         }
 
-        state.nodes.set(command.node.id, command.node);
+        state.nodes.set(command.node.id, { id: command.node.id });
         break;
 
       case 'graph.removeNode':
@@ -960,7 +964,11 @@ function validateGraphTrace(
             issues,
           )
         ) {
-          state.edges.set(command.edge.id, command.edge);
+          state.edges.set(command.edge.id, {
+            id: command.edge.id,
+            from: command.edge.from,
+            to: command.edge.to,
+          });
         }
         break;
 
@@ -974,37 +982,17 @@ function validateGraphTrace(
         state.edges.delete(command.edgeId);
         break;
 
-      case 'graph.setNodeValue': {
-        const node = state.nodes.get(command.nodeId);
-
-        if (node === undefined) {
+      case 'graph.setNodeValue':
+        if (!state.nodes.has(command.nodeId)) {
           addGraphNodeNotFoundIssue(issues, commandIndex, command.nodeId);
-
-          break;
         }
-
-        state.nodes.set(command.nodeId, {
-          ...node,
-          value: command.value,
-        });
         break;
-      }
 
-      case 'graph.setEdgeWeight': {
-        const edge = state.edges.get(command.edgeId);
-
-        if (edge === undefined) {
+      case 'graph.setEdgeWeight':
+        if (!state.edges.has(command.edgeId)) {
           addGraphEdgeNotFoundIssue(issues, commandIndex, command.edgeId);
-
-          break;
         }
-
-        state.edges.set(command.edgeId, {
-          ...edge,
-          weight: command.weight,
-        });
         break;
-      }
 
       case 'graph.visitNode':
       case 'graph.distance':
@@ -1051,8 +1039,8 @@ function validateGraphTrace(
 }
 
 function validateGraphEdgeReferences(
-  edge: GraphEdge,
-  nodes: ReadonlyMap<string, GraphNode>,
+  edge: GraphSemanticEdge,
+  nodes: ReadonlyMap<string, GraphSemanticNode>,
   commandIndex: number,
   issues: TraceSemanticIssue[],
 ): boolean {
@@ -1088,7 +1076,7 @@ function validateGraphPositions(
   positions:
     | Readonly<Record<string, { readonly x: number; readonly y: number }>>
     | undefined,
-  nodes: ReadonlyMap<string, GraphNode>,
+  nodes: ReadonlyMap<string, GraphSemanticNode>,
   commandIndex: number,
   issues: TraceSemanticIssue[],
 ): void {
@@ -1140,7 +1128,7 @@ function validateGraphPositions(
 }
 
 function graphNodeHasEdges(
-  edges: ReadonlyMap<string, GraphEdge>,
+  edges: ReadonlyMap<string, GraphSemanticEdge>,
   nodeId: string,
 ): boolean {
   for (const edge of edges.values()) {
@@ -1369,7 +1357,11 @@ function validateLinkedListTrace(
       continue;
     }
 
-    state.nodes.set(node.id, node);
+    state.nodes.set(node.id, {
+      id: node.id,
+      nextId: node.nextId,
+      previousId: node.previousId,
+    });
   }
 
   validateLinkedListTopology(state, 1, issues, true);
@@ -1409,7 +1401,11 @@ function validateLinkedListTrace(
           break;
         }
 
-        state.nodes.set(command.node.id, command.node);
+        state.nodes.set(command.node.id, {
+          id: command.node.id,
+          nextId: command.node.nextId,
+          previousId: command.node.previousId,
+        });
         break;
 
       case 'linked-list.removeNode':
@@ -1541,21 +1537,11 @@ function validateLinkedListTrace(
         break;
       }
 
-      case 'linked-list.setValue': {
-        const node = state.nodes.get(command.nodeId);
-
-        if (node === undefined) {
+      case 'linked-list.setValue':
+        if (!state.nodes.has(command.nodeId)) {
           addLinkedListNodeNotFoundIssue(issues, commandIndex, command.nodeId);
-
-          break;
         }
-
-        state.nodes.set(command.nodeId, {
-          ...node,
-          value: command.value,
-        });
         break;
-      }
 
       case 'linked-list.visit':
         if (!state.nodes.has(command.nodeId)) {
@@ -1882,7 +1868,7 @@ function validateDoublyLinkedListPointers(
 }
 
 function validateLinkedListNodeReferences(
-  node: LinkedListNode,
+  node: LinkedListSemanticNode,
   state: LinkedListSemanticState,
   commandIndex: number,
   issues: TraceSemanticIssue[],
@@ -1964,7 +1950,7 @@ function validateLinkedListNodeReferences(
 }
 
 function linkedListNodeIsReferenced(
-  nodes: ReadonlyMap<string, LinkedListNode>,
+  nodes: ReadonlyMap<string, LinkedListSemanticNode>,
   nodeId: string,
 ): boolean {
   for (const node of nodes.values()) {
@@ -2043,7 +2029,11 @@ function validateHashTableTrace(
       continue;
     }
 
-    state.entries.set(entry.id, entry);
+    state.entries.set(entry.id, {
+      id: entry.id,
+      key: entry.key,
+      bucketIndex: entry.bucketIndex,
+    });
     keys.set(entry.key, entry.id);
   }
 
@@ -2089,7 +2079,11 @@ function validateHashTableTrace(
           keys.delete(existingEntry.key);
         }
 
-        state.entries.set(command.entry.id, command.entry);
+        state.entries.set(command.entry.id, {
+          id: command.entry.id,
+          key: command.entry.key,
+          bucketIndex: command.entry.bucketIndex,
+        });
 
         keys.set(command.entry.key, command.entry.id);
         break;
