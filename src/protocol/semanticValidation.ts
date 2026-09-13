@@ -95,10 +95,6 @@ type TreeSemanticState = {
   nodes: Map<string, TreeSemanticNode>;
 };
 
-type GraphSemanticNode = {
-  readonly id: string;
-};
-
 type GraphSemanticEdge = {
   readonly id: string;
   readonly from: string;
@@ -107,7 +103,7 @@ type GraphSemanticEdge = {
 
 type GraphSemanticState = {
   layout: GraphLayout;
-  nodes: Map<string, GraphSemanticNode>;
+  nodes: Set<string>;
   edges: Map<string, GraphSemanticEdge>;
 };
 
@@ -124,15 +120,9 @@ type LinkedListSemanticState = {
   nodes: Map<string, LinkedListSemanticNode>;
 };
 
-type HashTableSemanticEntry = {
-  readonly id: string;
-  readonly key: TraceValue;
-  readonly bucketIndex: number;
-};
-
 type HashTableSemanticState = {
   bucketCount: number;
-  entries: Map<string, HashTableSemanticEntry>;
+  entries: Map<string, TraceValue>;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -249,6 +239,7 @@ function validateArrayTrace(
     switch (command.type) {
       case 'array.compare':
       case 'array.swap':
+      case 'array.mark':
         for (const index of command.indices) {
           validateArrayIndex(index, arrayLength, commandIndex, issues);
         }
@@ -256,12 +247,6 @@ function validateArrayTrace(
 
       case 'array.set':
         validateArrayIndex(command.index, arrayLength, commandIndex, issues);
-        break;
-
-      case 'array.mark':
-        for (const index of command.indices) {
-          validateArrayIndex(index, arrayLength, commandIndex, issues);
-        }
         break;
 
       case 'message':
@@ -344,6 +329,7 @@ function validateMatrixTrace(
     switch (command.type) {
       case 'matrix.compare':
       case 'matrix.swap':
+      case 'matrix.mark':
         for (const position of command.positions) {
           validateMatrixPosition(
             position.row,
@@ -365,19 +351,6 @@ function validateMatrixTrace(
           commandIndex,
           issues,
         );
-        break;
-
-      case 'matrix.mark':
-        for (const position of command.positions) {
-          validateMatrixPosition(
-            position.row,
-            position.column,
-            rowCount,
-            columnCount,
-            commandIndex,
-            issues,
-          );
-        }
         break;
 
       case 'message':
@@ -554,6 +527,7 @@ function validateTreeTrace(
       }
 
       case 'tree.setValue':
+      case 'tree.visit':
         if (!state.nodes.has(command.nodeId)) {
           addTreeNodeNotFoundIssue(issues, commandIndex, command.nodeId);
         }
@@ -561,26 +535,13 @@ function validateTreeTrace(
 
       case 'tree.compare':
       case 'tree.swapValues':
-        for (const nodeId of command.nodeIds) {
-          if (!state.nodes.has(nodeId)) {
-            addTreeNodeNotFoundIssue(issues, commandIndex, nodeId);
-          }
-        }
-
-        break;
-
-      case 'tree.visit':
-        if (!state.nodes.has(command.nodeId)) {
-          addTreeNodeNotFoundIssue(issues, commandIndex, command.nodeId);
-        }
-        break;
-
       case 'tree.mark':
         for (const nodeId of command.nodeIds) {
           if (!state.nodes.has(nodeId)) {
             addTreeNodeNotFoundIssue(issues, commandIndex, nodeId);
           }
         }
+
         break;
 
       case 'message':
@@ -826,7 +787,7 @@ function validateGraphTrace(
 
   const state: GraphSemanticState = {
     layout: createCommand.layout ?? 'circular',
-    nodes: new Map(),
+    nodes: new Set(),
     edges: new Map(),
   };
 
@@ -842,7 +803,7 @@ function validateGraphTrace(
       continue;
     }
 
-    state.nodes.set(node.id, { id: node.id });
+    state.nodes.add(node.id);
   }
 
   for (const edge of createCommand.edges) {
@@ -920,7 +881,7 @@ function validateGraphTrace(
           break;
         }
 
-        state.nodes.set(command.node.id, { id: command.node.id });
+        state.nodes.add(command.node.id);
         break;
 
       case 'graph.removeNode':
@@ -983,17 +944,6 @@ function validateGraphTrace(
         break;
 
       case 'graph.setNodeValue':
-        if (!state.nodes.has(command.nodeId)) {
-          addGraphNodeNotFoundIssue(issues, commandIndex, command.nodeId);
-        }
-        break;
-
-      case 'graph.setEdgeWeight':
-        if (!state.edges.has(command.edgeId)) {
-          addGraphEdgeNotFoundIssue(issues, commandIndex, command.edgeId);
-        }
-        break;
-
       case 'graph.visitNode':
       case 'graph.distance':
         if (!state.nodes.has(command.nodeId)) {
@@ -1001,6 +951,7 @@ function validateGraphTrace(
         }
         break;
 
+      case 'graph.setEdgeWeight':
       case 'graph.visitEdge':
         if (!state.edges.has(command.edgeId)) {
           addGraphEdgeNotFoundIssue(issues, commandIndex, command.edgeId);
@@ -1040,7 +991,7 @@ function validateGraphTrace(
 
 function validateGraphEdgeReferences(
   edge: GraphSemanticEdge,
-  nodes: ReadonlyMap<string, GraphSemanticNode>,
+  nodes: ReadonlySet<string>,
   commandIndex: number,
   issues: TraceSemanticIssue[],
 ): boolean {
@@ -1076,7 +1027,7 @@ function validateGraphPositions(
   positions:
     | Readonly<Record<string, { readonly x: number; readonly y: number }>>
     | undefined,
-  nodes: ReadonlyMap<string, GraphSemanticNode>,
+  nodes: ReadonlySet<string>,
   commandIndex: number,
   issues: TraceSemanticIssue[],
 ): void {
@@ -1538,11 +1489,6 @@ function validateLinkedListTrace(
       }
 
       case 'linked-list.setValue':
-        if (!state.nodes.has(command.nodeId)) {
-          addLinkedListNodeNotFoundIssue(issues, commandIndex, command.nodeId);
-        }
-        break;
-
       case 'linked-list.visit':
         if (!state.nodes.has(command.nodeId)) {
           addLinkedListNodeNotFoundIssue(issues, commandIndex, command.nodeId);
@@ -2029,11 +1975,7 @@ function validateHashTableTrace(
       continue;
     }
 
-    state.entries.set(entry.id, {
-      id: entry.id,
-      key: entry.key,
-      bucketIndex: entry.bucketIndex,
-    });
+    state.entries.set(entry.id, entry.key);
     keys.set(entry.key, entry.id);
   }
 
@@ -2050,7 +1992,7 @@ function validateHashTableTrace(
 
     switch (command.type) {
       case 'hash-table.set': {
-        const existingEntry = state.entries.get(command.entry.id);
+        const existingKey = state.entries.get(command.entry.id);
         const keyOwner = keys.get(command.entry.key);
 
         if (keyOwner !== undefined && keyOwner !== command.entry.id) {
@@ -2075,38 +2017,32 @@ function validateHashTableTrace(
           break;
         }
 
-        if (existingEntry !== undefined) {
-          keys.delete(existingEntry.key);
+        if (existingKey !== undefined) {
+          keys.delete(existingKey);
         }
 
-        state.entries.set(command.entry.id, {
-          id: command.entry.id,
-          key: command.entry.key,
-          bucketIndex: command.entry.bucketIndex,
-        });
+        state.entries.set(command.entry.id, command.entry.key);
 
         keys.set(command.entry.key, command.entry.id);
         break;
       }
 
       case 'hash-table.delete': {
-        const entry = state.entries.get(command.entryId);
+        const key = state.entries.get(command.entryId);
 
-        if (entry === undefined) {
+        if (key === undefined) {
           addHashTableEntryNotFoundIssue(issues, commandIndex, command.entryId);
 
           break;
         }
 
         state.entries.delete(command.entryId);
-        keys.delete(entry.key);
+        keys.delete(key);
         break;
       }
 
       case 'hash-table.move': {
-        const entry = state.entries.get(command.entryId);
-
-        if (entry === undefined) {
+        if (!state.entries.has(command.entryId)) {
           addHashTableEntryNotFoundIssue(issues, commandIndex, command.entryId);
 
           break;
@@ -2123,10 +2059,6 @@ function validateHashTableTrace(
           break;
         }
 
-        state.entries.set(command.entryId, {
-          ...entry,
-          bucketIndex: command.bucketIndex,
-        });
         break;
       }
 
