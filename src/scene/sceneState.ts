@@ -317,20 +317,3 @@ export function createPlaceholderScene(
     isPlaceholder: true,
   };
 }
-
-/* -------------------------------------------------------------------------- */
-/* Type helpers                                                                */
-/* -------------------------------------------------------------------------- */
-
-export function hasSceneStructure(
-  scene: SceneState,
-): scene is Exclude<SceneState, EmptySceneState> {
-  return scene.structure !== null;
-}
-
-export function isSceneStructure<Structure extends TraceStructure>(
-  scene: SceneState,
-  structure: Structure,
-): scene is Extract<SceneState, { readonly structure: Structure }> {
-  return scene.structure === structure;
-}

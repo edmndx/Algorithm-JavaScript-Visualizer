@@ -47,7 +47,6 @@ export class TimelineBuildError extends Error {
 export type TraceTimeline = {
   readonly commands: readonly TraceCommand[];
   readonly checkpoints: readonly TimelineCheckpoint[];
-  readonly checkpointInterval: number;
   readonly operationCount: number;
   readonly structure: Extract<
     TraceCommand,
@@ -127,7 +126,6 @@ export function buildTimeline(
     timeline: {
       commands: preparedCommands,
       checkpoints,
-      checkpointInterval,
       operationCount:
         preparedCommands.length - TRACE_INITIALIZATION_COMMAND_COUNT,
       structure: initializationCommand.structure,
@@ -155,16 +153,7 @@ export function getPlaybackFrame(
   );
 }
 
-export function getTraceInitializationCommands(
-  commands: readonly TraceCommand[],
-): readonly TraceCommand[] {
-  return commands.slice(0, TRACE_INITIALIZATION_COMMAND_COUNT);
-}
-
-export function getFrame(
-  timeline: TraceTimeline,
-  stepIndex: number,
-): TimelineFrame {
+function getFrame(timeline: TraceTimeline, stepIndex: number): TimelineFrame {
   assertStepIndex(timeline, stepIndex);
 
   const checkpoint = findCheckpoint(timeline.checkpoints, stepIndex);
@@ -178,25 +167,6 @@ export function getFrame(
   }
 
   return { stepIndex, scene };
-}
-
-export function getNextFrame(
-  timeline: TraceTimeline,
-  currentFrame: TimelineFrame,
-): TimelineFrame {
-  const nextStepIndex = currentFrame.stepIndex + 1;
-  assertStepIndex(timeline, nextStepIndex);
-
-  const command = timeline.commands[nextStepIndex];
-
-  if (command === undefined) {
-    throw new Error(`Missing timeline command at step ${nextStepIndex}.`);
-  }
-
-  return {
-    stepIndex: nextStepIndex,
-    scene: reduceTraceCommand(currentFrame.scene, command),
-  };
 }
 
 function assertStepIndex(timeline: TraceTimeline, stepIndex: number): void {

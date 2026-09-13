@@ -1,9 +1,4 @@
-import { TRACE_PROTOCOL_VERSION } from '../protocol/protocolVersion';
-import {
-  validateTrace,
-  type TraceValidationResult,
-} from '../protocol/traceValidation';
-import type { TraceCommand, TraceSourceLocation } from '../protocol/traceTypes';
+import type { TraceCommand } from '../protocol/traceTypes';
 import { reduceArray } from './reducers/array';
 import { reduceGraph } from './reducers/graph';
 import { reduceHashTable } from './reducers/hashTable';
@@ -12,83 +7,13 @@ import { reduceMatrix } from './reducers/matrix';
 import { reduceQueue } from './reducers/queue';
 import { reduceStack } from './reducers/stack';
 import { reduceTree } from './reducers/tree';
-import {
-  SceneReducerError,
-  type SceneReducerErrorCode,
-} from './sceneReducerError';
-import {
-  createInitialScene,
-  createInitializedScene,
-  type SceneMessage,
-  type SceneState,
-} from './sceneState';
+import { SceneReducerError } from './sceneReducerError';
+import { createInitializedScene, type SceneState } from './sceneState';
 
 export {
   SceneReducerError,
   type SceneReducerErrorCode,
 } from './sceneReducerError';
-
-export type TraceReductionIssue = {
-  readonly commandIndex: number;
-  readonly code: SceneReducerErrorCode | 'UNEXPECTED_REDUCER_ERROR';
-  readonly message: string;
-  readonly path: readonly PropertyKey[];
-  readonly source?: TraceSourceLocation;
-};
-
-export type TraceReductionResult =
-  | {
-      readonly ok: true;
-      readonly version: typeof TRACE_PROTOCOL_VERSION;
-      readonly commands: readonly TraceCommand[];
-      readonly scene: SceneState;
-    }
-  | Exclude<TraceValidationResult, { readonly ok: true }>
-  | {
-      readonly ok: false;
-      readonly stage: 'reducer';
-      readonly issues: readonly [TraceReductionIssue];
-    };
-
-export function reduceTrace(input: unknown): TraceReductionResult {
-  const validation = validateTrace(input);
-  if (!validation.ok) return validation;
-
-  let scene: SceneState = createInitialScene();
-
-  for (const [commandIndex, command] of validation.commands.entries()) {
-    try {
-      scene = reduceTraceCommand(scene, command);
-    } catch (error) {
-      return {
-        ok: false,
-        stage: 'reducer',
-        issues: [
-          {
-            commandIndex,
-            code:
-              error instanceof SceneReducerError
-                ? error.code
-                : 'UNEXPECTED_REDUCER_ERROR',
-            message:
-              error instanceof Error
-                ? error.message
-                : 'Unknown scene reducer error.',
-            path: ['commands', commandIndex],
-            source: command.source,
-          },
-        ],
-      };
-    }
-  }
-
-  return {
-    ok: true,
-    version: validation.version,
-    commands: validation.commands,
-    scene,
-  };
-}
 
 export function reduceTraceCommand(
   scene: SceneState,
@@ -101,7 +26,7 @@ export function reduceTraceCommand(
     case 'message':
       return {
         ...scene,
-        message: createSceneMessage(command.text, command.level),
+        message: { text: command.text, level: command.level ?? 'info' },
       };
 
     case 'array.create':
@@ -197,13 +122,6 @@ function reduceSceneInit(
   }
 
   return createInitializedScene(command.structure, command.title ?? null);
-}
-
-function createSceneMessage(
-  text: string,
-  level: 'info' | 'warning' | 'error' | undefined,
-): SceneMessage {
-  return { text, level: level ?? 'info' };
 }
 
 function assertNever(value: never): never {
