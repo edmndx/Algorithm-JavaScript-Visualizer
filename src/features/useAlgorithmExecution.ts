@@ -28,7 +28,6 @@ export function useAlgorithmExecution(
 ): AlgorithmExecution {
   const sandboxClient = useRef<SandboxClient | null>(null);
   const activeTask = useRef<'initialization' | 'run' | null>(null);
-  const isRunActive = useRef(false);
   const runSequence = useRef(0);
   const [isRunning, setIsRunning] = useState(false);
   const [successfulSourceRevision, setSuccessfulSourceRevision] = useState<
@@ -41,7 +40,6 @@ export function useAlgorithmExecution(
   const discardActiveTask = useCallback(() => {
     runSequence.current += 1;
     activeTask.current = null;
-    isRunActive.current = false;
     const client = sandboxClient.current;
     sandboxClient.current = null;
     client?.dispose();
@@ -100,9 +98,8 @@ export function useAlgorithmExecution(
   );
 
   async function run(runSource: RunnableSource) {
-    if (isRunActive.current) return;
+    if (activeTask.current === 'run') return;
     if (activeTask.current === 'initialization') discardActiveTask();
-    isRunActive.current = true;
     activeTask.current = 'run';
     setSuccessfulSourceRevision(null);
 
@@ -113,7 +110,7 @@ export function useAlgorithmExecution(
         client = new SandboxClient();
         sandboxClient.current = client;
       } catch (error) {
-        isRunActive.current = false;
+        activeTask.current = null;
         setConsoleEntries([
           createConsoleEntry('error', sandboxFailureMessage(error)),
         ]);
@@ -194,7 +191,6 @@ export function useAlgorithmExecution(
     } finally {
       if (runId === runSequence.current) {
         activeTask.current = null;
-        isRunActive.current = false;
         setIsRunning(false);
       }
     }
