@@ -250,7 +250,7 @@ function findBreadthFirstTraversal(
   if (queueSeed === null) return null;
 
   const visited = matchVisitedDeclaration(statements[1], queueSeed.seed);
-  const head = matchHeadDeclaration(statements[2]);
+  const head = matchZeroDeclaration(statements[2]);
   const loop = statements[3];
   if (
     visited === null ||
@@ -797,23 +797,6 @@ function matchVisitedDeclaration(
     argument.elements.length === 1 &&
     element?.type === 'Literal' &&
     element.value === seed
-    ? declarator.id
-    : null;
-}
-
-function matchHeadDeclaration(node: AnyNode | undefined): Identifier | null {
-  if (
-    node?.type !== 'VariableDeclaration' ||
-    node.kind !== 'let' ||
-    node.declarations.length !== 1
-  ) {
-    return null;
-  }
-
-  const declarator = node.declarations[0];
-  return declarator?.id.type === 'Identifier' &&
-    declarator.init?.type === 'Literal' &&
-    declarator.init.value === 0
     ? declarator.id
     : null;
 }

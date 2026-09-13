@@ -239,54 +239,6 @@ export function isDirectConsoleArgument(
   );
 }
 
-export function directInstrumentationScopes(
-  program: Program,
-): readonly DirectInstrumentationScope[] {
-  return [
-    { body: program, owner: null },
-    ...program.body.flatMap((statement) =>
-      statement.type === 'FunctionDeclaration' && statement.id !== null
-        ? [{ body: statement.body, owner: statement }]
-        : [],
-    ),
-  ];
-}
-
-export function isCalledExactlyOnce(
-  program: Program,
-  declaration: FunctionDeclaration,
-): boolean {
-  if (declaration.id === null) return false;
-
-  const name = declaration.id.name;
-  let calls = 0;
-  let unsafeReference = false;
-
-  walkAst(program, (node, parent, _grandparent, insideUnsupportedScope) => {
-    if (node === declaration.id || !isIdentifierReference(node, parent, name)) {
-      return;
-    }
-
-    if (insideUnsupportedScope) {
-      unsafeReference = true;
-      return;
-    }
-
-    if (
-      parent?.type === 'CallExpression' &&
-      parent.callee === node &&
-      !parent.optional
-    ) {
-      calls += 1;
-      return;
-    }
-
-    unsafeReference = true;
-  });
-
-  return calls === 1 && !unsafeReference;
-}
-
 export function isDirectWriteTarget(
   node: AnyNode,
   parent: AnyNode | null,

@@ -108,7 +108,9 @@ export function instrumentLinkedList(
     return merge === null ? null : instrumentMerge(source, program, merge);
   }
 
-  const declarations = findListDeclarations(program, contract.identifier);
+  const declarations = mergeDeclarations.filter(
+    ({ declaration }) => declaration === contract.declaration,
+  );
   const candidates = declarations
     .map(({ declaration, nodes }) => analyzeList(program, declaration, nodes))
     .filter((candidate): candidate is ListCandidate => candidate !== null);
@@ -429,43 +431,6 @@ function nextChainRoot(node: AnyNode): Identifier | null {
 
   if (node.object.type === 'Identifier') return node.object;
   return nextChainRoot(node.object);
-}
-
-function findListDeclarations(
-  program: Program,
-  identifier: string,
-): ListDeclaration[] {
-  return program.body.flatMap((statement) => {
-    if (
-      statement.type !== 'VariableDeclaration' ||
-      statement.kind !== 'const' ||
-      statement.declarations.length !== 1
-    ) {
-      return [];
-    }
-
-    const declarator = statement.declarations[0];
-    if (
-      declarator?.id.type !== 'Identifier' ||
-      declarator.id.name !== identifier ||
-      declarator.init?.type !== 'ObjectExpression'
-    ) {
-      return [];
-    }
-
-    const nodes = readStaticList(declarator.init, declarator.id.name);
-    const declarationLine = sourceLine(statement);
-    return nodes === null || declarationLine === null
-      ? []
-      : [
-          {
-            declaration: statement,
-            declarationLine,
-            root: declarator.id.name,
-            nodes,
-          },
-        ];
-  });
 }
 
 function findAllListDeclarations(program: Program): ListDeclaration[] {

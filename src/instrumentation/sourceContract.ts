@@ -9,8 +9,6 @@ import type {
 } from 'acorn';
 
 import {
-  directInstrumentationScopes,
-  isCalledExactlyOnce,
   isDirectConsoleArgument,
   isIdentifierReference,
   parseJavaScript,
@@ -171,27 +169,20 @@ export function validateVisualizationSource(
 export function primaryOperationBindings(
   contract: ValidVisualizationSource,
 ): readonly PrimaryOperationBinding[] {
-  const programScope = directInstrumentationScopes(contract.program)[0];
-  if (programScope === undefined) return [];
-
   const bindings: PrimaryOperationBinding[] = [
     {
-      scope: programScope,
+      scope: { body: contract.program, owner: null },
       root: contract.identifier,
       invocationArgument: null,
     },
   ];
 
   for (const statement of contract.program.body) {
-    if (
-      statement.type !== 'FunctionDeclaration' ||
-      statement.id === null ||
-      !isCalledExactlyOnce(contract.program, statement)
-    ) {
+    if (statement.type !== 'FunctionDeclaration' || statement.id === null) {
       continue;
     }
 
-    const call = findDirectFunctionCall(contract.program, statement);
+    const call = findOnlySafeDirectFunctionCall(contract.program, statement);
     if (call === null) continue;
 
     const argumentIndex = call.arguments.findIndex(
@@ -265,27 +256,35 @@ export function hasSafePrimaryRootUsage(
   return safe;
 }
 
-function findDirectFunctionCall(
+function findOnlySafeDirectFunctionCall(
   program: Program,
   declaration: FunctionDeclaration,
 ): CallExpression | null {
   const name = declaration.id?.name;
   if (name === undefined) return null;
 
-  const calls: CallExpression[] = [];
-  walkAst(program, (node, _parent, _grandparent, insideUnsupportedScope) => {
+  let call: CallExpression | null = null;
+  let unsafeReference = false;
+  walkAst(program, (node, parent, _grandparent, insideUnsupportedScope) => {
+    if (node === declaration.id || !isIdentifierReference(node, parent, name)) {
+      return;
+    }
+
     if (
       !insideUnsupportedScope &&
-      node.type === 'CallExpression' &&
-      !node.optional &&
-      node.callee.type === 'Identifier' &&
-      node.callee.name === name
+      parent?.type === 'CallExpression' &&
+      parent.callee === node &&
+      !parent.optional &&
+      call === null
     ) {
-      calls.push(node);
+      call = parent;
+      return;
     }
+
+    unsafeReference = true;
   });
 
-  return calls.length === 1 ? (calls[0] ?? null) : null;
+  return unsafeReference ? null : call;
 }
 
 function functionDirectlyReferences(
