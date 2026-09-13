@@ -1,5 +1,5 @@
 import type { GraphPosition, TraceCommand } from '../../protocol/traceTypes';
-import { SceneReducerError } from '../sceneReducerError';
+import { assertNever, assertSceneStructure } from '../sceneReducerError';
 import type { GraphSceneState, SceneState } from '../sceneState';
 import {
   appendUnique,
@@ -31,19 +31,7 @@ export function reduceGraph(
   scene: SceneState,
   command: GraphCommand,
 ): GraphSceneState {
-  if (scene.structure === null) {
-    throw new SceneReducerError(
-      'STRUCTURE_NOT_INITIALIZED',
-      `Cannot apply "${command.type}" before scene.init.`,
-    );
-  }
-
-  if (scene.structure !== 'graph') {
-    throw new SceneReducerError(
-      'STRUCTURE_MISMATCH',
-      `Cannot apply "${command.type}" to a "${scene.structure}" scene.`,
-    );
-  }
+  assertSceneStructure(scene, 'graph', command.type);
 
   switch (command.type) {
     case 'graph.create':
@@ -196,8 +184,4 @@ function cloneGraphPositions(
       { ...position },
     ]),
   );
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled protocol value: ${JSON.stringify(value)}`);
 }

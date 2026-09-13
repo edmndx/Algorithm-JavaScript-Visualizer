@@ -7,7 +7,7 @@ import { reduceMatrix } from './reducers/matrix';
 import { reduceQueue } from './reducers/queue';
 import { reduceStack } from './reducers/stack';
 import { reduceTree } from './reducers/tree';
-import { SceneReducerError } from './sceneReducerError';
+import { assertNever, SceneReducerError } from './sceneReducerError';
 import { createInitializedScene, type SceneState } from './sceneState';
 
 export {
@@ -122,8 +122,4 @@ function reduceSceneInit(
   }
 
   return createInitializedScene(command.structure, command.title ?? null);
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled protocol value: ${JSON.stringify(value)}`);
 }

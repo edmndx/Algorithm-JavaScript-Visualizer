@@ -1,5 +1,9 @@
 import type { TraceCommand } from '../../protocol/traceTypes';
-import { SceneReducerError } from '../sceneReducerError';
+import {
+  assertNever,
+  assertSceneStructure,
+  SceneReducerError,
+} from '../sceneReducerError';
 import type { ArraySceneState, SceneState } from '../sceneState';
 
 type ArrayCommand = Extract<
@@ -18,19 +22,7 @@ export function reduceArray(
   scene: SceneState,
   command: ArrayCommand,
 ): ArraySceneState {
-  if (scene.structure === null) {
-    throw new SceneReducerError(
-      'STRUCTURE_NOT_INITIALIZED',
-      `Cannot apply "${command.type}" before scene.init.`,
-    );
-  }
-
-  if (scene.structure !== 'array') {
-    throw new SceneReducerError(
-      'STRUCTURE_MISMATCH',
-      `Cannot apply "${command.type}" to a "${scene.structure}" scene.`,
-    );
-  }
+  assertSceneStructure(scene, 'array', command.type);
 
   switch (command.type) {
     case 'array.create':
@@ -122,8 +114,4 @@ function assertIndex(
 
 function createItemIds(count: number): readonly string[] {
   return Array.from({ length: count }, (_, index) => `array-item-${index}`);
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled protocol value: ${JSON.stringify(value)}`);
 }

@@ -1,5 +1,5 @@
 import type { TraceCommand } from '../../protocol/traceTypes';
-import { SceneReducerError } from '../sceneReducerError';
+import { assertNever, assertSceneStructure } from '../sceneReducerError';
 import type { HashTableSceneState, SceneState } from '../sceneState';
 import {
   appendUnique,
@@ -26,19 +26,7 @@ export function reduceHashTable(
   scene: SceneState,
   command: HashTableCommand,
 ): HashTableSceneState {
-  if (scene.structure === null) {
-    throw new SceneReducerError(
-      'STRUCTURE_NOT_INITIALIZED',
-      `Cannot apply "${command.type}" before scene.init.`,
-    );
-  }
-
-  if (scene.structure !== 'hash-table') {
-    throw new SceneReducerError(
-      'STRUCTURE_MISMATCH',
-      `Cannot apply "${command.type}" to a "${scene.structure}" scene.`,
-    );
-  }
+  assertSceneStructure(scene, 'hash-table', command.type);
 
   switch (command.type) {
     case 'hash-table.create':
@@ -121,8 +109,4 @@ export function reduceHashTable(
     default:
       return assertNever(command);
   }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled protocol value: ${JSON.stringify(value)}`);
 }

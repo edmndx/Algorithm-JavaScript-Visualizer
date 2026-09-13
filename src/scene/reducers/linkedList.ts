@@ -1,5 +1,5 @@
 import type { TraceCommand } from '../../protocol/traceTypes';
-import { SceneReducerError } from '../sceneReducerError';
+import { assertNever, assertSceneStructure } from '../sceneReducerError';
 import type { LinkedListSceneState, SceneState } from '../sceneState';
 import {
   appendUnique,
@@ -29,19 +29,7 @@ export function reduceLinkedList(
   scene: SceneState,
   command: LinkedListCommand,
 ): LinkedListSceneState {
-  if (scene.structure === null) {
-    throw new SceneReducerError(
-      'STRUCTURE_NOT_INITIALIZED',
-      `Cannot apply "${command.type}" before scene.init.`,
-    );
-  }
-
-  if (scene.structure !== 'linked-list') {
-    throw new SceneReducerError(
-      'STRUCTURE_MISMATCH',
-      `Cannot apply "${command.type}" to a "${scene.structure}" scene.`,
-    );
-  }
+  assertSceneStructure(scene, 'linked-list', command.type);
 
   switch (command.type) {
     case 'linked-list.create':
@@ -127,8 +115,4 @@ export function reduceLinkedList(
     default:
       return assertNever(command);
   }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled protocol value: ${JSON.stringify(value)}`);
 }

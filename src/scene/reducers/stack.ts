@@ -1,5 +1,9 @@
 import type { TraceCommand } from '../../protocol/traceTypes';
-import { SceneReducerError } from '../sceneReducerError';
+import {
+  assertNever,
+  assertSceneStructure,
+  SceneReducerError,
+} from '../sceneReducerError';
 import type { SceneState, StackSceneState } from '../sceneState';
 
 type StackCommand = Extract<
@@ -14,19 +18,7 @@ export function reduceStack(
   scene: SceneState,
   command: StackCommand,
 ): StackSceneState {
-  if (scene.structure === null) {
-    throw new SceneReducerError(
-      'STRUCTURE_NOT_INITIALIZED',
-      `Cannot apply "${command.type}" before scene.init.`,
-    );
-  }
-
-  if (scene.structure !== 'stack') {
-    throw new SceneReducerError(
-      'STRUCTURE_MISMATCH',
-      `Cannot apply "${command.type}" to a "${scene.structure}" scene.`,
-    );
-  }
+  assertSceneStructure(scene, 'stack', command.type);
 
   switch (command.type) {
     case 'stack.create':
@@ -102,8 +94,4 @@ function removeIndicesAtOrAbove(
       indices.filter((index) => index < upperBound),
     ]),
   );
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled protocol value: ${JSON.stringify(value)}`);
 }

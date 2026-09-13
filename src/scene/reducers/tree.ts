@@ -1,5 +1,5 @@
 import type { TraceCommand } from '../../protocol/traceTypes';
-import { SceneReducerError } from '../sceneReducerError';
+import { assertNever, assertSceneStructure } from '../sceneReducerError';
 import type { SceneState, TreeSceneState } from '../sceneState';
 import {
   appendUnique,
@@ -29,19 +29,7 @@ export function reduceTree(
   scene: SceneState,
   command: TreeCommand,
 ): TreeSceneState {
-  if (scene.structure === null) {
-    throw new SceneReducerError(
-      'STRUCTURE_NOT_INITIALIZED',
-      `Cannot apply "${command.type}" before scene.init.`,
-    );
-  }
-
-  if (scene.structure !== 'tree') {
-    throw new SceneReducerError(
-      'STRUCTURE_MISMATCH',
-      `Cannot apply "${command.type}" to a "${scene.structure}" scene.`,
-    );
-  }
+  assertSceneStructure(scene, 'tree', command.type);
 
   switch (command.type) {
     case 'tree.create':
@@ -147,8 +135,4 @@ function cloneTreeNode<
   Node extends { readonly id: string; readonly children: readonly string[] },
 >(node: Node): Node {
   return { ...node, children: [...node.children] };
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled protocol value: ${JSON.stringify(value)}`);
 }

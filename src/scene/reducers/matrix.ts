@@ -1,5 +1,9 @@
 import type { TraceCommand } from '../../protocol/traceTypes';
-import { SceneReducerError } from '../sceneReducerError';
+import {
+  assertNever,
+  assertSceneStructure,
+  SceneReducerError,
+} from '../sceneReducerError';
 import type { MatrixSceneState, SceneState } from '../sceneState';
 
 type MatrixCommand = Extract<
@@ -18,19 +22,7 @@ export function reduceMatrix(
   scene: SceneState,
   command: MatrixCommand,
 ): MatrixSceneState {
-  if (scene.structure === null) {
-    throw new SceneReducerError(
-      'STRUCTURE_NOT_INITIALIZED',
-      `Cannot apply "${command.type}" before scene.init.`,
-    );
-  }
-
-  if (scene.structure !== 'matrix') {
-    throw new SceneReducerError(
-      'STRUCTURE_MISMATCH',
-      `Cannot apply "${command.type}" to a "${scene.structure}" scene.`,
-    );
-  }
+  assertSceneStructure(scene, 'matrix', command.type);
 
   switch (command.type) {
     case 'matrix.create':
@@ -180,8 +172,4 @@ function createMatrixItemIds(
       return id;
     }),
   );
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled protocol value: ${JSON.stringify(value)}`);
 }

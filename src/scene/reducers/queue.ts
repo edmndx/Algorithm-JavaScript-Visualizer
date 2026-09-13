@@ -1,5 +1,9 @@
 import type { TraceCommand } from '../../protocol/traceTypes';
-import { SceneReducerError } from '../sceneReducerError';
+import {
+  assertNever,
+  assertSceneStructure,
+  SceneReducerError,
+} from '../sceneReducerError';
 import type { QueueSceneState, SceneState } from '../sceneState';
 
 type QueueCommand = Extract<
@@ -19,19 +23,7 @@ export function reduceQueue(
   scene: SceneState,
   command: QueueCommand,
 ): QueueSceneState {
-  if (scene.structure === null) {
-    throw new SceneReducerError(
-      'STRUCTURE_NOT_INITIALIZED',
-      `Cannot apply "${command.type}" before scene.init.`,
-    );
-  }
-
-  if (scene.structure !== 'queue') {
-    throw new SceneReducerError(
-      'STRUCTURE_MISMATCH',
-      `Cannot apply "${command.type}" to a "${scene.structure}" scene.`,
-    );
-  }
+  assertSceneStructure(scene, 'queue', command.type);
 
   switch (command.type) {
     case 'queue.create':
@@ -147,8 +139,4 @@ function shiftIndicesAfterRemoval(
         .map((index) => (index > removedIndex ? index - 1 : index)),
     ]),
   );
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled protocol value: ${JSON.stringify(value)}`);
 }
