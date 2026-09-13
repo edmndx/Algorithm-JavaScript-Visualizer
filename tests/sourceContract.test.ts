@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import {
   getPrimaryStructureIdentifier,
-  getVisualizationSourceHint,
   validateVisualizationSource,
 } from '../src/instrumentation/sourceContract';
 import { instrumentJavaScript } from '../src/instrumentation/instrumentJavaScript';
@@ -136,17 +135,6 @@ test('rejects a root whose representation belongs to another structure', () => {
   assert.equal(result.status, 'invalid');
   if (result.status !== 'invalid') return;
   assert.equal(result.diagnostic.code, 'INVALID_PRIMARY_STRUCTURE');
-});
-
-test('provides a compact editor hint from the same source contract', () => {
-  assert.equal(
-    getVisualizationSourceHint('array'),
-    'Primary structure: const array = [...]',
-  );
-  assert.equal(
-    getVisualizationSourceHint('tree'),
-    'Primary structure: const tree = { value, left, right }',
-  );
 });
 
 test('instruments the canonical array instead of an auxiliary array', () => {

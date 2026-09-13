@@ -764,8 +764,7 @@ button.visualization-toolbar-placeholder:disabled {
   opacity: 1;
 }
 
-.visualization-toolbar-placeholder,
-.playback-control-placeholder {
+.visualization-toolbar-placeholder {
   display: grid;
   width: var(--control-size);
   height: var(--control-size);
@@ -781,9 +780,6 @@ button.visualization-toolbar-placeholder:disabled {
   place-items: center;
   border-radius: 0.375rem;
   color: var(--muted-foreground);
-}
-
-.playback-control-button {
   border: 0;
   outline: 0;
   background: transparent;
@@ -855,7 +851,7 @@ button.visualization-toolbar-placeholder:disabled {
   color: var(--accent-red);
 }
 
-/* Playback placeholder */
+/* Playback */
 .playback-controls-reveal {
   position: absolute;
   z-index: 10;
@@ -891,19 +887,6 @@ button.visualization-toolbar-placeholder:disabled {
   display: flex;
   align-items: center;
   gap: 1rem;
-}
-
-.playback-controls-placeholders {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.playback-control-placeholder--primary {
-  width: 2.25rem;
-  height: 2.25rem;
-  background: color-mix(in oklab, var(--accent-red) 20%, transparent);
-  color: var(--accent-red);
 }
 
 .playback-control-buttons {
@@ -951,12 +934,6 @@ button.visualization-toolbar-placeholder:disabled {
 
 .playback-status-current {
   color: var(--foreground);
-}
-
-.playback-speed {
-  border-radius: 0.25rem;
-  background: color-mix(in oklab, var(--surface) 60%, transparent);
-  padding: 0.125rem 0.375rem;
 }
 
 /* Console */
@@ -1165,15 +1142,6 @@ button.visualization-toolbar-placeholder:disabled {
   position: relative;
   min-height: 0;
   flex: 1;
-}
-
-.code-editor-panel-contract-hint {
-  flex: none;
-  border-bottom: 1px solid var(--border);
-  padding: 0.375rem 0.75rem;
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
 }
 
 .code-editor-panel-loading {

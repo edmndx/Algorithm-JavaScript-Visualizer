@@ -117,12 +117,6 @@ export function getPrimaryStructureIdentifier(
   return SOURCE_CONTRACTS[structure].identifier;
 }
 
-export function getVisualizationSourceHint(
-  structure: InstrumentableStructure,
-): string {
-  return `Primary structure: ${SOURCE_CONTRACTS[structure].example}`;
-}
-
 export function validateVisualizationSource(
   source: string,
   structure: InstrumentableStructure,

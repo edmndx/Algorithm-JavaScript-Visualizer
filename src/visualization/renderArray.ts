@@ -13,6 +13,7 @@ type ArrayItemDatum = {
   readonly value: string;
   readonly label: string | null;
   readonly markerNames: readonly string[];
+  readonly isMarked: boolean;
   readonly isCompared: boolean;
   readonly y: number;
   readonly height: number;
@@ -55,12 +56,14 @@ export const renderArray: D3RenderFunction<ArraySceneState> = (svg, scene) => {
     }
     const numeric = typeof value === 'number';
     const valueY = numeric ? yScale(value) : baselineY;
+    const itemMarkerNames = markerNames.get(index) ?? [];
     return {
       id,
       index,
       value: String(value),
       label: scene.labels[index] ?? null,
-      markerNames: markerNames.get(index) ?? [],
+      markerNames: itemMarkerNames.filter((name) => name !== 'probe'),
+      isMarked: itemMarkerNames.length > 0,
       isCompared: comparedIndices.has(index),
       y: numeric
         ? Math.min(valueY, baselineY)
@@ -154,7 +157,7 @@ export const renderArray: D3RenderFunction<ArraySceneState> = (svg, scene) => {
     )
     .attr('data-item-id', (datum) => datum.id)
     .classed('visualization-compared', (datum) => datum.isCompared)
-    .classed('visualization-marked', (datum) => datum.markerNames.length > 0);
+    .classed('visualization-marked', (datum) => datum.isMarked);
 
   items
     .transition()

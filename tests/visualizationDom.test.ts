@@ -527,6 +527,40 @@ test('defines the Lovable blue and red gradients used by array bars', () => {
   );
 });
 
+test('highlights internal probes without rendering their marker name', () => {
+  const arraySvg = createSvg();
+  renderArray(arraySvg, {
+    ...createArrayScene([5]),
+    markers: { probe: [0] },
+  });
+  const arrayItem = requiredElement(arraySvg, '[data-item-id="array-item-0"]');
+  assert.equal(arrayItem.classList.contains('visualization-marked'), true);
+  assert.equal(
+    requiredElement(arrayItem, '.visualization-marker').textContent,
+    '',
+  );
+
+  const matrixSvg = createSvg();
+  renderMatrix(matrixSvg, {
+    structure: 'matrix',
+    title: null,
+    message: null,
+    values: [[5]],
+    itemIds: [['matrix-item-0']],
+    comparedPositions: null,
+    markers: { probe: [{ row: 0, column: 0 }] },
+  });
+  const matrixCell = requiredElement(
+    matrixSvg,
+    '[data-item-id="matrix-item-0"]',
+  );
+  assert.equal(matrixCell.classList.contains('visualization-marked'), true);
+  assert.equal(
+    requiredElement(matrixCell, '.visualization-marker').textContent,
+    '',
+  );
+});
+
 test('animates signed geometry updates on the existing array identity', async () => {
   const initial = createArrayScene([5, -5]);
   const updated: ArraySceneState = {

@@ -12,6 +12,7 @@ type MatrixCellDatum = {
   readonly column: number;
   readonly value: string;
   readonly markerNames: readonly string[];
+  readonly isMarked: boolean;
   readonly isCompared: boolean;
 };
 
@@ -60,12 +61,14 @@ export const renderMatrix: D3RenderFunction<MatrixSceneState> = (
           `Matrix item identity at (${row}, ${column}) is missing.`,
         );
       }
+      const cellMarkerNames = markerNames.get(key) ?? [];
       cells.push({
         id,
         row,
         column,
         value: String(value),
-        markerNames: markerNames.get(key) ?? [],
+        markerNames: cellMarkerNames.filter((name) => name !== 'probe'),
+        isMarked: cellMarkerNames.length > 0,
         isCompared: comparedKeys.has(key),
       });
     }
@@ -135,7 +138,7 @@ export const renderMatrix: D3RenderFunction<MatrixSceneState> = (
     )
     .attr('data-item-id', (cell) => cell.id)
     .classed('visualization-compared', (cell) => cell.isCompared)
-    .classed('visualization-marked', (cell) => cell.markerNames.length > 0);
+    .classed('visualization-marked', (cell) => cell.isMarked);
 
   groups
     .transition()
