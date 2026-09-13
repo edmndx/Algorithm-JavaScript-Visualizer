@@ -8,8 +8,13 @@ import { createRoot } from 'react-dom/client';
 import { algorithmCatalog, type AlgorithmId } from '../src/data/catalog';
 import { parseJavaScript } from '../src/instrumentation/ast';
 import { instrumentJavaScript } from '../src/instrumentation/instrumentJavaScript';
+import type { InstrumentableStructure } from '../src/instrumentation/instrumentationTypes';
 import { buildTimeline, getPlaybackFrame } from '../src/playback/timeline';
-import { TRACE_PROTOCOL_VERSION, validateTrace } from '../src/protocol';
+import {
+  TRACE_PROTOCOL_VERSION,
+  validateTrace,
+  type TraceCommand,
+} from '../src/protocol';
 import { runCode } from '../src/runner/runner';
 import type { SceneState } from '../src/scene';
 import SceneRenderer from '../src/visualization/SceneRenderer';
@@ -26,6 +31,19 @@ function executeCatalogSource(code: string): readonly unknown[][] {
   const console = { log: (...values: unknown[]) => output.push(values) };
   Function('console', `"use strict";\n${code}`)(console);
   return output;
+}
+
+async function executeCatalogTrace(
+  code: string,
+  structure: InstrumentableStructure,
+): Promise<readonly TraceCommand[]> {
+  const instrumentation = instrumentJavaScript(code, structure);
+  assert.equal(instrumentation.status, 'instrumented');
+  if (instrumentation.status !== 'instrumented') return [];
+
+  const execution = await runCode(instrumentation.source, { tracing: true });
+  assert.equal(execution.ok, true);
+  return execution.ok ? execution.commands : [];
 }
 
 test('catalog labels repurposed starters by their canonical algorithms', () => {
@@ -57,13 +75,8 @@ for (const structure of new Set(
     const algorithm = algorithmCatalog.find(
       (entry) => entry.structure === structure,
     )!;
-    const instrumentation = instrumentJavaScript(algorithm.code, structure);
-    assert.equal(instrumentation.status, 'instrumented');
-    if (instrumentation.status !== 'instrumented') return;
-    const execution = await runCode(instrumentation.source, { tracing: true });
-    assert.equal(execution.ok, true);
-    if (!execution.ok) return;
-    const result = buildTimeline(execution.commands);
+    const commands = await executeCatalogTrace(algorithm.code, structure);
+    const result = buildTimeline(commands);
     if (!result.ok) throw result.error;
     const host = document.createElement('div');
     document.body.append(host);
@@ -661,18 +674,12 @@ test('Merge Two Sorted Lists traces disjoint inputs into its returned value chai
     [1, 1, 2, 3, 4, 4],
   );
 
-  const instrumentation = instrumentJavaScript(
+  const commands = await executeCatalogTrace(
     algorithm.code,
     algorithm.structure,
   );
-  assert.equal(instrumentation.status, 'instrumented');
-  if (instrumentation.status !== 'instrumented') return;
 
-  const execution = await runCode(instrumentation.source, { tracing: true });
-  assert.equal(execution.ok, true);
-  if (!execution.ok) return;
-
-  const create = execution.commands.find(
+  const create = commands.find(
     (command) => command.type === 'linked-list.create',
   );
   assert.ok(create !== undefined);
@@ -686,7 +693,7 @@ test('Merge Two Sorted Lists traces disjoint inputs into its returned value chai
     { id: 'node-5', value: 4, nextId: null },
   ]);
 
-  const timelineResult = buildTimeline(execution.commands);
+  const timelineResult = buildTimeline(commands);
   assert.equal(timelineResult.ok, true);
   if (!timelineResult.ok) return;
   const initialScene = getPlaybackFrame(timelineResult.timeline, 0).scene;
@@ -711,20 +718,12 @@ test('Merge Two Sorted Lists traces disjoint inputs into its returned value chai
 
 test('Spiral Traversal traces the matrix it traverses', async () => {
   const algorithm = catalogAlgorithm('spiral-matrix-traversal');
-  const instrumentation = instrumentJavaScript(
+  const commands = await executeCatalogTrace(
     algorithm.code,
     algorithm.structure,
   );
-  assert.equal(instrumentation.status, 'instrumented');
-  if (instrumentation.status !== 'instrumented') return;
 
-  const execution = await runCode(instrumentation.source, { tracing: true });
-  assert.equal(execution.ok, true);
-  if (!execution.ok) return;
-
-  const create = execution.commands.find(
-    (command) => command.type === 'matrix.create',
-  );
+  const create = commands.find((command) => command.type === 'matrix.create');
   assert.ok(
     create !== undefined,
     'Spiral Traversal must create a trace matrix.',
@@ -765,18 +764,12 @@ for (const [id, functionName] of tracedCatalogFunctions) {
     );
     if (declaration === undefined || declaration.loc === undefined) return;
 
-    const instrumentation = instrumentJavaScript(
+    const commands = await executeCatalogTrace(
       algorithm.code,
       algorithm.structure,
     );
-    assert.equal(instrumentation.status, 'instrumented');
-    if (instrumentation.status !== 'instrumented') return;
 
-    const execution = await runCode(instrumentation.source, { tracing: true });
-    assert.equal(execution.ok, true);
-    if (!execution.ok) return;
-
-    const structuralCommands = execution.commands.filter(
+    const structuralCommands = commands.filter(
       (command) =>
         command.type !== 'scene.init' && !command.type.endsWith('.create'),
     );
@@ -802,36 +795,24 @@ for (const [id, functionName] of tracedCatalogFunctions) {
 
 test('Sliding Window Maximum emits dequeue-back trace commands', async () => {
   const algorithm = catalogAlgorithm('generate-binary-numbers');
-  const instrumentation = instrumentJavaScript(
+  const commands = await executeCatalogTrace(
     algorithm.code,
     algorithm.structure,
   );
-  assert.equal(instrumentation.status, 'instrumented');
-  if (instrumentation.status !== 'instrumented') return;
 
-  const execution = await runCode(instrumentation.source, { tracing: true });
-  assert.equal(execution.ok, true);
-  if (!execution.ok) return;
-
-  assert.ok(commandTypes(execution.commands).includes('queue.dequeueBack'));
+  assert.ok(commandTypes(commands).includes('queue.dequeueBack'));
 });
 
 for (const algorithm of algorithmCatalog) {
   test(`${algorithm.name} traverses the real catalog visualization pipeline`, async () => {
-    const instrumentation = instrumentJavaScript(
+    const commands = await executeCatalogTrace(
       algorithm.code,
       algorithm.structure,
     );
-    assert.equal(instrumentation.status, 'instrumented');
-    if (instrumentation.status !== 'instrumented') return;
-
-    const execution = await runCode(instrumentation.source, { tracing: true });
-    assert.equal(execution.ok, true);
-    if (!execution.ok) return;
 
     const validation = validateTrace({
       version: TRACE_PROTOCOL_VERSION,
-      commands: execution.commands,
+      commands,
     });
     assert.equal(validation.ok, true);
     if (!validation.ok) return;

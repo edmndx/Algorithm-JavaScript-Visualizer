@@ -8,7 +8,7 @@ import {
 import { instrumentJavaScript } from '../src/instrumentation/instrumentJavaScript';
 import type { InstrumentableStructure } from '../src/instrumentation/instrumentationTypes';
 import { buildTimeline, getPlaybackFrame } from '../src/playback/timeline';
-import { TRACE_LIMITS } from '../src/protocol';
+import { TRACE_LIMITS, type TraceCommand } from '../src/protocol';
 import { runSandbox } from '../src/sandbox/runSandbox';
 import { createTracer } from '../src/tracer/tracer';
 import { getLinkedListDisplayOrder } from '../src/visualization/renderLinkedList';
@@ -202,30 +202,11 @@ function trimBack(values) {
   return values.pop();
 }
 console.log(trimBack(queue));`;
-  const instrumentation = instrumentJavaScript(source, 'queue');
-
-  assert.equal(instrumentation.status, 'instrumented');
-  if (instrumentation.status !== 'instrumented') return;
-
-  const trace = createTracer();
-  const output: unknown[][] = [];
-  const execute = new Function(
-    'trace',
-    'console',
-    `"use strict"; return (async function () {\n${instrumentation.source}\n})();`,
-  ) as (
-    trace: ReturnType<typeof createTracer>,
-    console: { readonly log: (...values: unknown[]) => void },
-  ) => Promise<void>;
-
-  await execute(trace, {
-    log: (...values: unknown[]) => output.push(values),
-  });
+  const { commands, output } = await executeInstrumentedSource(source, 'queue');
 
   assert.deepEqual(output, [[2]]);
   assert.equal(
-    trace.getCommands().filter(({ type }) => type === 'queue.dequeueBack')
-      .length,
+    commands.filter(({ type }) => type === 'queue.dequeueBack').length,
     1,
   );
 });
@@ -481,27 +462,10 @@ test('rejects unsupported static stack initializer values', () => {
 
 test('traces a real two-list merge without changing its returned head', async () => {
   const source = mergeTwoListsSource();
-  const instrumentation = instrumentJavaScript(source, 'linked-list');
-
-  assert.equal(instrumentation.status, 'instrumented');
-  if (instrumentation.status !== 'instrumented') return;
-
-  const trace = createTracer();
-  const output: unknown[][] = [];
-  const execute = new Function(
-    'trace',
-    'console',
-    `"use strict"; return (async function () {\n${instrumentation.source}\n})();`,
-  ) as (
-    trace: ReturnType<typeof createTracer>,
-    console: { readonly log: (...values: unknown[]) => void },
-  ) => Promise<void>;
-
-  await execute(trace, {
-    log: (...values: unknown[]) => output.push(values),
-  });
-
-  const commands = trace.getCommands();
+  const { commands, output } = await executeInstrumentedSource(
+    source,
+    'linked-list',
+  );
   const create = commands.find(
     (command) => command.type === 'linked-list.create',
   );
@@ -757,15 +721,17 @@ function executeSource(source: string): readonly unknown[][] {
   return output;
 }
 
-async function executeInstrumentedGraphSource(source: string): Promise<{
+async function executeInstrumentedSource(
+  source: string,
+  structure: InstrumentableStructure,
+): Promise<{
+  readonly commands: readonly TraceCommand[];
   readonly output: readonly unknown[][];
-  readonly visitedNodeIds: readonly string[];
-  readonly visitedEdgeIds: readonly string[];
 }> {
-  const instrumentation = instrumentJavaScript(source, 'graph');
+  const instrumentation = instrumentJavaScript(source, structure);
   assert.equal(instrumentation.status, 'instrumented');
   if (instrumentation.status !== 'instrumented') {
-    return { output: [], visitedNodeIds: [], visitedEdgeIds: [] };
+    return { commands: [], output: [] };
   }
 
   const trace = createTracer();
@@ -783,7 +749,15 @@ async function executeInstrumentedGraphSource(source: string): Promise<{
     log: (...values: unknown[]) => output.push(values),
   });
 
-  const commands = trace.getCommands();
+  return { commands: trace.getCommands(), output };
+}
+
+async function executeInstrumentedGraphSource(source: string): Promise<{
+  readonly output: readonly unknown[][];
+  readonly visitedNodeIds: readonly string[];
+  readonly visitedEdgeIds: readonly string[];
+}> {
+  const { commands, output } = await executeInstrumentedSource(source, 'graph');
   return {
     output,
     visitedNodeIds: commands.flatMap((command) =>
@@ -799,28 +773,7 @@ async function executeInstrumentedTreeSource(source: string): Promise<{
   readonly output: readonly unknown[][];
   readonly visitedValues: readonly unknown[];
 }> {
-  const instrumentation = instrumentJavaScript(source, 'tree');
-  assert.equal(instrumentation.status, 'instrumented');
-  if (instrumentation.status !== 'instrumented') {
-    return { output: [], visitedValues: [] };
-  }
-
-  const trace = createTracer();
-  const output: unknown[][] = [];
-  const execute = new Function(
-    'trace',
-    'console',
-    `"use strict"; return (async function () {\n${instrumentation.source}\n})();`,
-  ) as (
-    trace: ReturnType<typeof createTracer>,
-    console: { readonly log: (...values: unknown[]) => void },
-  ) => Promise<void>;
-
-  await execute(trace, {
-    log: (...values: unknown[]) => output.push(values),
-  });
-
-  const commands = trace.getCommands();
+  const { commands, output } = await executeInstrumentedSource(source, 'tree');
   const create = commands.find((command) => command.type === 'tree.create');
   assert.ok(create !== undefined);
   if (create === undefined || create.type !== 'tree.create') {
