@@ -1,9 +1,5 @@
 export type SandboxErrorKind =
-  | 'worker-creation'
-  | 'communication'
-  | 'worker-crashed'
-  | 'worker-unavailable'
-  | 'disposed';
+  'worker-creation' | 'communication' | 'worker-crashed' | 'disposed';
 
 export class SandboxError extends Error {
   readonly kind: SandboxErrorKind;

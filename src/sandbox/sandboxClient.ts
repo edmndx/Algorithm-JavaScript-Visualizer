@@ -2,11 +2,7 @@ import { releaseProxy, wrap, type Remote } from 'comlink';
 
 import type { InstrumentableStructure } from '../instrumentation/instrumentationTypes';
 import { SandboxError } from './sandboxErrors';
-import type {
-  SandboxHealth,
-  SandboxRunResult,
-  SandboxWorkerApi,
-} from './sandboxTypes';
+import type { SandboxRunResult, SandboxWorkerApi } from './sandboxTypes';
 
 type ActiveState = {
   readonly lifecycle: 'active';
@@ -18,7 +14,7 @@ type SandboxState =
   | ActiveState
   | {
       readonly lifecycle: 'terminated';
-      readonly failure?: SandboxError;
+      readonly failure: SandboxError;
     }
   | { readonly lifecycle: 'disposed' };
 
@@ -29,53 +25,14 @@ export class SandboxClient {
     this.state = this.createWorker();
   }
 
-  async ping(): Promise<SandboxHealth> {
-    return this.callWorker((worker) => worker.ping());
-  }
-
   async run(
     source: string,
     structure: InstrumentableStructure | null,
   ): Promise<SandboxRunResult> {
-    return this.callWorker<SandboxRunResult>((worker) =>
-      worker.run(source, structure),
-    );
-  }
-
-  restart(): void {
-    this.assertNotDisposed();
-    const state = this.state;
-    this.state = { lifecycle: 'terminated' };
-
-    if (state.lifecycle === 'active') this.release(state);
-
-    this.state = this.createWorker();
-  }
-
-  terminate(): void {
-    this.assertNotDisposed();
-    const state = this.state;
-    if (state.lifecycle !== 'active') return;
-
-    this.state = { lifecycle: 'terminated' };
-    this.release(state);
-  }
-
-  dispose(): void {
-    if (this.state.lifecycle === 'disposed') return;
-
-    const state = this.state;
-    this.state = { lifecycle: 'disposed' };
-    if (state.lifecycle === 'active') this.release(state);
-  }
-
-  private async callWorker<Result>(
-    call: (worker: Remote<SandboxWorkerApi>) => Promise<Result>,
-  ): Promise<Result> {
     const state = this.requireActive();
 
     try {
-      return await call(state.proxy);
+      return await state.proxy.run(source, structure);
     } catch (cause) {
       const failure = new SandboxError(
         'communication',
@@ -86,6 +43,14 @@ export class SandboxClient {
       if (this.state === state) this.fail(state, failure);
       throw failure;
     }
+  }
+
+  dispose(): void {
+    if (this.state.lifecycle === 'disposed') return;
+
+    const state = this.state;
+    this.state = { lifecycle: 'disposed' };
+    if (state.lifecycle === 'active') this.release(state);
   }
 
   private createWorker(): ActiveState {
@@ -119,16 +84,7 @@ export class SandboxClient {
       throw new SandboxError('disposed', 'Sandbox has been disposed.');
     }
 
-    throw (
-      this.state.failure ??
-      new SandboxError('worker-unavailable', 'Sandbox Worker is not active.')
-    );
-  }
-
-  private assertNotDisposed(): void {
-    if (this.state.lifecycle === 'disposed') {
-      throw new SandboxError('disposed', 'Sandbox has been disposed.');
-    }
+    throw this.state.failure;
   }
 
   private release(state: ActiveState): void {
