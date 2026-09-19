@@ -8,7 +8,7 @@ import {
 export function useCatalog() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] =
-    useState<AlgorithmCategory | null>(null);
+    useState<AlgorithmCategory | null>(algorithmCategories[0] ?? null);
 
   const visibleAlgorithms = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();

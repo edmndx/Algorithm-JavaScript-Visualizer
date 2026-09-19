@@ -29,7 +29,6 @@
 
   --color-accent-red: var(--accent-red);
   --color-accent-blue: var(--accent-blue);
-  --color-accent-green: var(--accent-green);
 
   --color-ring: var(--ring);
 }
@@ -55,7 +54,6 @@
 
   --accent-red: oklch(0.52 0.19 25);
   --accent-blue: oklch(0.5 0.16 245);
-  --accent-green: oklch(0.55 0.14 155);
 
   --ring: oklch(0.55 0.18 25);
 }
@@ -72,25 +70,28 @@
   }
 
   body {
+    min-width: 20rem;
+    margin: 0;
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'ss01';
+    background-image:
+      radial-gradient(
+        circle at 15% 10%,
+        color-mix(in oklab, var(--accent-red) 10%, transparent),
+        transparent 50%
+      ),
+      radial-gradient(
+        circle at 85% 90%,
+        color-mix(in oklab, var(--accent-blue) 10%, transparent),
+        transparent 55%
+      );
+    background-attachment: fixed;
   }
 
   ::selection {
     background-color: color-mix(in oklab, var(--accent-red) 40%, transparent);
     color: var(--foreground);
   }
-}
-
-@utility glass-panel {
-  background-color: color-mix(in oklab, var(--panel) 85%, transparent);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-}
-
-@utility scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
 }
