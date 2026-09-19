@@ -8,7 +8,6 @@ export default function ConsolePanel() {
           <Terminal className="console-panel-icon" aria-hidden="true" />
           Console
         </h2>
-        <span className="console-panel-action-placeholder">Clear</span>
       </div>
       <div className="console-panel-output" role="log" aria-live="polite" />
     </section>
