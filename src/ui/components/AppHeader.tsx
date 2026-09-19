@@ -1,10 +1,57 @@
-import { FileDown, FileUp, Play } from 'lucide-react';
+import {
+  ChevronDown,
+  FileDown,
+  FileText,
+  FileUp,
+  Play,
+  Square,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 type AppHeaderProps = {
   algorithm: AlgorithmCatalogEntry | null;
+  fileStatus: 'empty' | 'loaded' | 'error';
+  isRunning: boolean;
+  onRun: () => void;
 };
 
-export default function AppHeader({ algorithm }: AppHeaderProps) {
+export default function AppHeader({
+  title,
+  category,
+  canRun,
+  fileStatus,
+  isRunning,
+  onRun,
+}: AppHeaderProps) {
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+  const fileMenuRef = useRef<HTMLDivElement>(null);
+  const fileMenuButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isFileMenuOpen) return;
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      if (!fileMenuRef.current?.contains(event.target as Node)) {
+        setIsFileMenuOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+
+      setIsFileMenuOpen(false);
+      fileMenuButtonRef.current?.focus();
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isFileMenuOpen]);
+
   return (
     <header className="app-header">
       <div className="app-header-brand">
@@ -36,24 +83,66 @@ export default function AppHeader({ algorithm }: AppHeaderProps) {
         <div
           className="app-header-actions"
           role="group"
-          aria-label="Unavailable actions"
+          aria-label="Application actions"
         >
-          <span className="app-header-action-placeholder" title="Import">
-            <FileUp className="app-header-action-icon" aria-hidden="true" />
-            <span>Import</span>
-          </span>
-          <span className="app-header-action-placeholder" title="Export">
-            <FileDown className="app-header-action-icon" aria-hidden="true" />
-            <span>Export</span>
-          </span>
-          <span className="app-header-run-placeholder">
-            {isRunning ? (
-              <Square className="app-header-run-icon" aria-hidden="true" />
-            ) : (
-              <Play className="app-header-run-icon" aria-hidden="true" />
-            )}
-            <span>{isRunning ? 'Stop' : 'Run'}</span>
-          </span>
+          <div
+            className="app-header-file-menu"
+            ref={fileMenuRef}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                setIsFileMenuOpen(false);
+              }
+            }}
+          >
+            <button
+              className="app-header-file-trigger"
+              type="button"
+              ref={fileMenuButtonRef}
+              aria-haspopup="menu"
+              aria-expanded={isFileMenuOpen}
+              onClick={() => setIsFileMenuOpen((isOpen) => !isOpen)}
+            >
+              <FileText className="app-header-action-icon" aria-hidden="true" />
+              <span>File</span>
+              <span className="app-header-file-status" aria-hidden="true" />
+              <ChevronDown
+                className="app-header-file-chevron"
+                aria-hidden="true"
+              />
+            </button>
+
+            {isFileMenuOpen ? (
+              <div className="app-header-file-dropdown" role="menu">
+                <span
+                  className="app-header-file-option"
+                  role="menuitem"
+                  aria-disabled="true"
+                >
+                  <FileUp aria-hidden="true" />
+                  <span>Import</span>
+                </span>
+                <span
+                  className="app-header-file-option"
+                  role="menuitem"
+                  aria-disabled="true"
+                >
+                  <FileDown aria-hidden="true" />
+                  <span>Export</span>
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          <button
+            className={`app-header-run${isRunning ? ' app-header-run--loading' : ''}`}
+            type="button"
+            aria-busy={isRunning}
+            disabled={isRunning || fileStatus === 'empty'}
+            onClick={() => onRun()}
+          >
+            <Play aria-hidden="true" className="app-header-run-icon" />
+            <span>{isRunning ? 'Running' : 'Run'}</span>
+          </button>
         </div>
       </div>
     </header>
