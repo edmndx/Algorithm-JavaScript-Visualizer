@@ -1,8 +1,15 @@
-import algorithmData from './algorithms.json';
-import commandChipData from './commandChips.json';
+import algorithmsData from './algorithms.json';
+import { algorithmCatalogSchema, type AlgorithmCatalogEntry } from './types';
 
-export const algorithmCatalog =
-  algorithmData as import('./types').AlgorithmCatalogEntry[];
-export const commandChips = commandChipData as import('./types').CommandChip[];
+export const algorithmCatalog: readonly Readonly<AlgorithmCatalogEntry>[] =
+  algorithmCatalogSchema.parse(algorithmsData);
 
-export type { AlgorithmCatalogEntry, CommandChip } from './types';
+export const algorithmCategories = [
+  ...new Set(algorithmCatalog.map((algorithm) => algorithm.category)),
+] as const;
+
+export type {
+  AlgorithmCatalogEntry,
+  AlgorithmCategory,
+  AlgorithmId,
+} from './types';
