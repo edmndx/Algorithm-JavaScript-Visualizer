@@ -8,20 +8,24 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-type AppHeaderProps = {
-  algorithm: AlgorithmCatalogEntry | null;
-  fileStatus: 'empty' | 'loaded' | 'error';
-  isRunning: boolean;
-  onRun: () => void;
-};
+interface AppHeaderProps {
+  readonly title: string;
+  readonly category: string;
+  readonly canRun: boolean;
+  readonly isRunning: boolean;
+  readonly onRun: () => void;
+  readonly onStop: () => void;
+  readonly traceSucceeded: boolean;
+}
 
-export default function AppHeader({
+export function AppHeader({
   title,
   category,
   canRun,
-  fileStatus,
   isRunning,
   onRun,
+  onStop,
+  traceSucceeded,
 }: AppHeaderProps) {
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
@@ -31,7 +35,10 @@ export default function AppHeader({
     if (!isFileMenuOpen) return;
 
     function closeOnOutsidePointer(event: PointerEvent) {
-      if (!fileMenuRef.current?.contains(event.target as Node)) {
+      if (
+        !(event.target instanceof Node) ||
+        !fileMenuRef.current?.contains(event.target)
+      ) {
         setIsFileMenuOpen(false);
       }
     }
@@ -134,11 +141,25 @@ export default function AppHeader({
           </div>
 
           <button
-            className={`app-header-run${isRunning ? ' app-header-run--loading' : ''}`}
+            className={[
+              'app-header-run',
+              isRunning && 'app-header-run--loading',
+              traceSucceeded && !isRunning && 'app-header-run--success',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             type="button"
             aria-busy={isRunning}
-            disabled={isRunning || fileStatus === 'empty'}
-            onClick={() => onRun()}
+            aria-label={isRunning ? 'Stop execution' : 'Run algorithm'}
+            disabled={!isRunning && !canRun}
+            onClick={isRunning ? onStop : onRun}
+            title={
+              isRunning
+                ? 'Stop execution'
+                : traceSucceeded
+                  ? 'Semantic trace succeeded'
+                  : undefined
+            }
           >
             {isRunning ? (
               <Square className="app-header-run-icon" aria-hidden="true" />
