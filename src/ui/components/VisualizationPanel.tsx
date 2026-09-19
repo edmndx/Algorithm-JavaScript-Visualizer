@@ -1,10 +1,12 @@
 import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import type { SceneState } from '../../scene';
+import { useMemo } from 'react';
 import SceneRenderer from '../../visualization/SceneRenderer';
 import PlaybackControls from './PlaybackControls';
 
 type VisualizationPanelProps = {
   readonly scene: SceneState;
+  readonly playbackSequence?: object;
   readonly currentStep: number;
   readonly totalSteps: number;
   readonly isPlaying: boolean;
@@ -20,6 +22,7 @@ type VisualizationPanelProps = {
 
 export default function VisualizationPanel({
   scene,
+  playbackSequence,
   currentStep,
   totalSteps,
   isPlaying,
@@ -32,6 +35,16 @@ export default function VisualizationPanel({
   onPrevious,
   onReset,
 }: VisualizationPanelProps) {
+  const playbackPosition = useMemo(
+    () =>
+      playbackSequence === undefined
+        ? undefined
+        : {
+            sequence: playbackSequence,
+            step: currentStep,
+          },
+    [playbackSequence, currentStep],
+  );
   return (
     <section
       className="visualization-panel"
@@ -75,7 +88,7 @@ export default function VisualizationPanel({
             ) : null}
           </div>
         ) : null}
-        <SceneRenderer scene={scene} />
+        <SceneRenderer scene={scene} playbackPosition={playbackPosition} />
       </div>
 
       <PlaybackControls
