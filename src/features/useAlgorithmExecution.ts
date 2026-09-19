@@ -70,6 +70,15 @@ export function useAlgorithmExecution(
 
       try {
         const sandboxResult = await client.run(source.code, source.structure);
+        if (
+          sandboxResult.status === 'source-contract-error' &&
+          initializationId === runSequence.current &&
+          isInitializationOwner()
+        ) {
+          setConsoleEntries([
+            createConsoleEntry('error', sandboxResult.diagnostic.message),
+          ]);
+        }
         commitAlgorithmInitialization(
           sandboxResult,
           () =>
@@ -130,6 +139,13 @@ export function useAlgorithmExecution(
       const entries: ConsoleEntry[] = [];
 
       switch (sandboxResult.status) {
+        case 'source-contract-error':
+          appendConsoleEntry(
+            entries,
+            'error',
+            sandboxResult.diagnostic.message,
+          );
+          break;
         case 'execution-failure':
           appendConsoleEntry(
             entries,

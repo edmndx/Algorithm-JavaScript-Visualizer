@@ -10,9 +10,7 @@ import {
 import { TRACE_LIMITS } from '../protocol';
 import {
   createIdentifierAllocator,
-  directInstrumentationScopes,
   hasUnsafeInstrumentationSyntax,
-  isCalledExactlyOnce,
   isDirectRootMethodCall,
   isIdentifierReference,
   isSupportedIndexExpression,
@@ -20,9 +18,14 @@ import {
   isRootedInvocation,
   sourceLine,
   walkAst,
-  type DirectInstrumentationScope,
 } from './ast';
 import { applySourceEdits, type SourceEdit } from './edits';
+import {
+  hasSafePrimaryRootUsage,
+  primaryOperationBindings,
+  type PrimaryOperationBinding,
+  type ValidVisualizationSource,
+} from './sourceContract';
 
 type MapMethod = 'set' | 'get' | 'has' | 'delete';
 
@@ -57,13 +60,15 @@ const BUCKET_COUNT = 17;
 export function instrumentHashTable(
   source: string,
   program: Program,
+  contract: ValidVisualizationSource,
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const candidates = findMapDeclarations(program)
-    .map(({ declaration, scope }) =>
-      analyzeHashTable(program, declaration, scope),
-    )
+  const declaration = findMapDeclaration(contract);
+  if (declaration === null) return null;
+
+  const candidates = primaryOperationBindings(contract)
+    .map((binding) => analyzeHashTable(contract, declaration, binding))
     .filter((candidate): candidate is HashTableCandidate => candidate !== null);
 
   if (candidates.length !== 1) return null;
@@ -172,34 +177,30 @@ function renderHashHelpers(
 }
 
 function analyzeHashTable(
-  program: Program,
+  contract: ValidVisualizationSource,
   declaration: VariableDeclaration,
-  scope: DirectInstrumentationScope,
+  binding: PrimaryOperationBinding,
 ): HashTableCandidate | null {
-  const declarator = declaration.declarations[0];
-  if (declarator?.id.type !== 'Identifier') return null;
-
-  const root = declarator.id.name;
+  const root = binding.root;
   const declarationLine = sourceLine(declaration);
-  if (
-    declarationLine === null ||
-    (scope.owner !== null && !isCalledExactlyOnce(program, scope.owner))
-  ) {
-    return null;
-  }
+  if (declarationLine === null) return null;
 
   const operations: MapOperation[] = [];
 
-  walkAst(scope.body, (node, _parent, _grandparent, insideUnsupportedScope) => {
-    if (insideUnsupportedScope) return;
-    const operation = matchMapOperation(node, root);
-    if (operation !== null) operations.push(operation);
-  });
+  walkAst(
+    binding.scope.body,
+    (node, _parent, _grandparent, insideUnsupportedScope) => {
+      if (insideUnsupportedScope) return;
+      const operation = matchMapOperation(node, root);
+      if (operation !== null) operations.push(operation);
+    },
+  );
 
   if (
     !operations.some(({ method }) => method === 'set') ||
     operations.some(({ call }) => call.start < declaration.end) ||
-    hasUnsafeHashTableUsage(program, declaration, operations, root)
+    !hasSafePrimaryRootUsage(contract, binding) ||
+    hasUnsafeHashTableUsage(binding.scope.body, declaration, operations, root)
   ) {
     return null;
   }
@@ -397,34 +398,20 @@ function containsCall(outer: CallExpression, inner: CallExpression): boolean {
   );
 }
 
-function findMapDeclarations(program: Program): Array<{
-  readonly declaration: VariableDeclaration;
-  readonly scope: DirectInstrumentationScope;
-}> {
-  return directInstrumentationScopes(program).flatMap((scope) =>
-    scope.body.body.flatMap((statement) => {
-      if (
-        statement.type !== 'VariableDeclaration' ||
-        statement.kind !== 'const' ||
-        statement.declarations.length !== 1
-      ) {
-        return [];
-      }
-
-      const declarator = statement.declarations[0];
-      return declarator?.id.type === 'Identifier' &&
-        declarator.init?.type === 'NewExpression' &&
-        declarator.init.callee.type === 'Identifier' &&
-        declarator.init.callee.name === 'Map' &&
-        declarator.init.arguments.length === 0
-        ? [{ declaration: statement, scope }]
-        : [];
-    }),
-  );
+function findMapDeclaration(
+  contract: ValidVisualizationSource,
+): VariableDeclaration | null {
+  const initializer = contract.declaration.declarations[0]?.init;
+  return initializer?.type === 'NewExpression' &&
+    initializer.callee.type === 'Identifier' &&
+    initializer.callee.name === 'Map' &&
+    initializer.arguments.length === 0
+    ? contract.declaration
+    : null;
 }
 
 function hasUnsafeHashTableUsage(
-  program: Program,
+  rootNode: AnyNode,
   declaration: VariableDeclaration,
   operations: readonly MapOperation[],
   root: string,
@@ -437,7 +424,7 @@ function hasUnsafeHashTableUsage(
     operations.map((operation) => [operation.call, operation]),
   );
 
-  walkAst(program, (node, parent) => {
+  walkAst(rootNode, (node, parent) => {
     if (
       (isRootedInvocation(node, root) &&
         (node.type !== 'CallExpression' || !supportedCalls.has(node))) ||

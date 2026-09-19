@@ -18,6 +18,12 @@ import {
   walkAst,
 } from './ast';
 import { applySourceEdits, lineIndentation, type SourceEdit } from './edits';
+import {
+  hasSafePrimaryRootUsage,
+  primaryOperationBindings,
+  type PrimaryOperationBinding,
+  type ValidVisualizationSource,
+} from './sourceContract';
 
 type StaticGraphNode = {
   readonly id: string;
@@ -44,11 +50,12 @@ type GraphCandidate = {
 export function instrumentGraph(
   source: string,
   program: Program,
+  contract: ValidVisualizationSource,
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const candidates = findGraphDeclarations(program)
-    .map(({ declaration, nodes }) => analyzeGraph(program, declaration, nodes))
+  const candidates = findGraphDeclarations(program, contract.identifier)
+    .map(({ declaration, nodes }) => analyzeGraph(contract, declaration, nodes))
     .filter((candidate): candidate is GraphCandidate => candidate !== null);
 
   const candidate = candidates[0];
@@ -102,7 +109,10 @@ export function instrumentGraph(
   return applySourceEdits(source, edits);
 }
 
-function findGraphDeclarations(program: Program): Array<{
+function findGraphDeclarations(
+  program: Program,
+  identifier: string,
+): Array<{
   readonly declaration: VariableDeclaration;
   readonly nodes: readonly StaticGraphNode[];
 }> {
@@ -118,6 +128,7 @@ function findGraphDeclarations(program: Program): Array<{
     const declarator = statement.declarations[0];
     if (
       declarator?.id.type !== 'Identifier' ||
+      declarator.id.name !== identifier ||
       declarator.init?.type !== 'ObjectExpression'
     ) {
       return [];
@@ -215,7 +226,7 @@ function staticPropertyName(node: AnyNode): string | null {
 }
 
 function analyzeGraph(
-  program: Program,
+  contract: ValidVisualizationSource,
   declaration: VariableDeclaration,
   nodes: readonly StaticGraphNode[],
 ): GraphCandidate | null {
@@ -225,37 +236,48 @@ function analyzeGraph(
     return null;
   }
 
-  const root = declarator.id.name;
-  const traversal = findGraphTraversal(
-    program,
-    declaration,
-    root,
-    new Set(nodes.map(({ id }) => id)),
-  );
-  if (
-    traversal === null ||
-    hasUnsafeGraphUsage(program, declaration, traversal, root)
-  ) {
-    return null;
-  }
+  const candidates = primaryOperationBindings(contract).flatMap((binding) => {
+    const traversal = findGraphTraversal(
+      binding,
+      declaration,
+      new Set(nodes.map(({ id }) => id)),
+    );
+    return traversal !== null &&
+      hasSafePrimaryRootUsage(contract, binding) &&
+      !hasUnsafeGraphUsage(
+        binding.scope.body,
+        declaration,
+        traversal,
+        binding.root,
+      )
+      ? [traversal]
+      : [];
+  });
+  const traversal = candidates[0];
+  if (candidates.length !== 1 || traversal === undefined) return null;
 
   return { declaration, declarationLine, nodes, traversal };
 }
 
 function findGraphTraversal(
-  program: Program,
+  binding: PrimaryOperationBinding,
   declaration: VariableDeclaration,
-  root: string,
   nodeIds: ReadonlySet<string>,
 ): GraphTraversal | null {
-  if (program.body.length !== 5 || program.body[0] !== declaration) return null;
+  const statements =
+    binding.scope.owner === null
+      ? binding.scope.body.body.slice(
+          binding.scope.body.body.indexOf(declaration) + 1,
+        )
+      : binding.scope.body.body;
+  if (statements.length !== 4) return null;
 
-  const queueSeed = matchQueueDeclaration(program.body[1], nodeIds);
+  const queueSeed = matchQueueDeclaration(statements[0], nodeIds);
   if (queueSeed === null) return null;
 
-  const visited = matchVisitedDeclaration(program.body[2], queueSeed.seed);
-  const head = matchHeadDeclaration(program.body[3]);
-  const loop = program.body[4];
+  const visited = matchVisitedDeclaration(statements[1], queueSeed.seed);
+  const head = matchHeadDeclaration(statements[2]);
+  const loop = statements[3];
   if (
     visited === null ||
     head === null ||
@@ -285,7 +307,7 @@ function findGraphTraversal(
   const nodeVisitLine = sourceLine(nodeVisit);
   const neighborLoop = matchNeighborLoop(
     neighborStatement,
-    root,
+    binding.root,
     extracted.node,
     extracted.queue,
     visited.name,
@@ -556,14 +578,14 @@ function isSingleArgumentCall(
 }
 
 function hasUnsafeGraphUsage(
-  program: Program,
+  rootNode: AnyNode,
   declaration: VariableDeclaration,
   traversal: GraphTraversal,
   root: string,
 ): boolean {
   let unsafe = false;
 
-  walkAst(program, (node, parent) => {
+  walkAst(rootNode, (node, parent) => {
     if (isRootWrite(node, root)) {
       unsafe = true;
       return;

@@ -30,6 +30,12 @@ import {
   lineIndentation,
   type SourceEdit,
 } from './edits';
+import {
+  hasSafePrimaryRootUsage,
+  primaryOperationBindings,
+  type PrimaryOperationBinding,
+  type ValidVisualizationSource,
+} from './sourceContract';
 
 type ArraySwapMatch = {
   readonly kind: 'swap';
@@ -64,6 +70,11 @@ type ArrayMarkMatch = {
 type ArrayOperation =
   ArraySwapMatch | ArrayComparisonMatch | ArraySetMatch | ArrayMarkMatch;
 
+type ArrayCandidate = {
+  readonly binding: PrimaryOperationBinding;
+  readonly operations: readonly ArrayOperation[];
+};
+
 const COMPARISON_OPERATORS = new Set(['<', '<=', '>', '>=', '===', '!==']);
 const ARITHMETIC_OPERATORS = new Set(['+', '-', '*', '/', '%', '**']);
 const SUPPORTED_ASSIGNMENT_OPERATORS = new Set([
@@ -79,10 +90,11 @@ const SUPPORTED_ASSIGNMENT_OPERATORS = new Set([
 export function instrumentArray(
   source: string,
   program: Program,
+  contract: ValidVisualizationSource,
 ): string | null {
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const trackedDeclaration = findTrackedArrayDeclaration(program);
+  const trackedDeclaration = findTrackedArrayDeclaration(contract);
   if (trackedDeclaration === null) return null;
 
   const trackedDeclarator = trackedDeclaration.declarations[0];
@@ -90,56 +102,22 @@ export function instrumentArray(
   if (trackedDeclarator?.id.type !== 'Identifier' || declarationLine === null)
     return null;
 
-  const trackedRoot = trackedDeclarator.id.name;
-
-  const operations: ArrayOperation[] = [];
-
-  walkAst(program, (node, parent, grandparent, insideUnsupportedScope) => {
-    if (insideUnsupportedScope) return;
-
-    const swap = matchArraySwap(node, parent, grandparent, trackedRoot);
-
-    if (swap !== null) {
-      operations.push(swap);
-      return;
-    }
-
-    const comparison = matchArrayComparison(node, parent, trackedRoot);
-    if (comparison !== null) {
-      operations.push(comparison);
-      return;
-    }
-
-    const mark = matchArrayMark(node, parent, trackedRoot);
-    if (mark !== null) operations.push(mark);
-
-    const arraySet = matchArraySet(node, parent, grandparent, trackedRoot);
-    if (arraySet !== null) operations.push(arraySet);
-  });
-
-  if (
-    operations.length === 0 ||
-    operations.some(
-      (operation) => operation.statement.start < trackedDeclaration.end,
-    ) ||
-    hasUnsafeTrackedArrayUsage(
-      program,
-      trackedDeclaration,
-      operations,
-      trackedRoot,
+  const candidates = primaryOperationBindings(contract)
+    .map((binding) =>
+      analyzeArrayBinding(contract, trackedDeclaration, binding),
     )
-  ) {
-    return null;
-  }
+    .filter((candidate): candidate is ArrayCandidate => candidate !== null);
+  const candidate = candidates[0];
+  if (candidates.length !== 1 || candidate === undefined) return null;
 
   const edits: SourceEdit[] = [
     {
       start: trackedDeclaration.end,
       end: trackedDeclaration.end,
-      text: `;\ntrace.initialize({ structure: 'array', source: { line: ${declarationLine} } });\ntrace.createArray({ values: ${trackedRoot}, source: { line: ${declarationLine} } });\n`,
+      text: `;\ntrace.initialize({ structure: 'array', source: { line: ${declarationLine} } });\ntrace.createArray({ values: ${contract.identifier}, source: { line: ${declarationLine} } });\n`,
     },
-    ...operations.map((operation) =>
-      operationInsertion(source, operation, trackedRoot),
+    ...candidate.operations.map((operation) =>
+      operationInsertion(source, operation, candidate.binding.root),
     ),
   ];
 
@@ -334,27 +312,58 @@ function matchArraySet(
 }
 
 function findTrackedArrayDeclaration(
-  program: Program,
+  contract: ValidVisualizationSource,
 ): VariableDeclaration | null {
-  const matches = program.body.filter(
-    (statement): statement is VariableDeclaration => {
-      if (
-        statement.type !== 'VariableDeclaration' ||
-        statement.kind !== 'const' ||
-        statement.declarations.length !== 1
-      ) {
-        return false;
+  return isSupportedInitialArray(contract.declaration.declarations[0]?.init)
+    ? contract.declaration
+    : null;
+}
+
+function analyzeArrayBinding(
+  contract: ValidVisualizationSource,
+  declaration: VariableDeclaration,
+  binding: PrimaryOperationBinding,
+): ArrayCandidate | null {
+  const operations: ArrayOperation[] = [];
+
+  walkAst(
+    binding.scope.body,
+    (node, parent, grandparent, insideUnsupportedScope) => {
+      if (insideUnsupportedScope) return;
+
+      const swap = matchArraySwap(node, parent, grandparent, binding.root);
+      if (swap !== null) {
+        operations.push(swap);
+        return;
       }
 
-      const [declarator] = statement.declarations;
-      return (
-        declarator?.id.type === 'Identifier' &&
-        isSupportedInitialArray(declarator.init)
-      );
+      const comparison = matchArrayComparison(node, parent, binding.root);
+      if (comparison !== null) {
+        operations.push(comparison);
+        return;
+      }
+
+      const mark = matchArrayMark(node, parent, binding.root);
+      if (mark !== null) operations.push(mark);
+
+      const arraySet = matchArraySet(node, parent, grandparent, binding.root);
+      if (arraySet !== null) operations.push(arraySet);
     },
   );
 
-  return matches.length === 1 ? (matches[0] ?? null) : null;
+  return operations.length > 0 &&
+    operations.every(
+      (operation) => operation.statement.start > declaration.end,
+    ) &&
+    hasSafePrimaryRootUsage(contract, binding) &&
+    !hasUnsafeTrackedArrayUsage(
+      binding.scope.body,
+      declaration,
+      operations,
+      binding.root,
+    )
+    ? { binding, operations }
+    : null;
 }
 
 function isSupportedInitialArray(
@@ -367,7 +376,7 @@ function isSupportedInitialArray(
 }
 
 function hasUnsafeTrackedArrayUsage(
-  program: Program,
+  rootNode: AnyNode,
   declaration: VariableDeclaration,
   operations: readonly ArrayOperation[],
   root: string,
@@ -381,7 +390,7 @@ function hasUnsafeTrackedArrayUsage(
   );
   let hasUnsafeUsage = false;
 
-  walkAst(program, (node, parent) => {
+  walkAst(rootNode, (node, parent) => {
     if (
       isRootedInvocation(node, root) ||
       (isRootWrite(node, root) && !supportedMutationNodes.has(node)) ||
