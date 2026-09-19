@@ -716,6 +716,41 @@
   color: var(--muted-foreground);
 }
 
+.playback-control-button {
+  display: grid;
+  width: var(--control-size);
+  height: var(--control-size);
+  place-items: center;
+  border-radius: 0.375rem;
+  color: var(--muted-foreground);
+}
+
+.playback-control-button {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.playback-control-button:hover:not(:disabled),
+.playback-control-button:focus-visible {
+  background: var(--surface-2);
+  color: var(--foreground);
+}
+
+.playback-control-button:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 40%, transparent);
+}
+
+.playback-control-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
 .visualization-toolbar-icon,
 .playback-control-icon {
   width: 1rem;
@@ -839,6 +874,19 @@
 }
 
 .playback-control-placeholder--primary {
+  width: 2.25rem;
+  height: 2.25rem;
+  background: color-mix(in oklab, var(--accent-red) 20%, transparent);
+  color: var(--accent-red);
+}
+
+.playback-control-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.playback-control-button--primary {
   width: 2.25rem;
   height: 2.25rem;
   background: color-mix(in oklab, var(--accent-red) 20%, transparent);

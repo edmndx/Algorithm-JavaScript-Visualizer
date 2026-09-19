@@ -6,7 +6,7 @@ export const PLAYBACK_STEP_DELAY_MS = 750;
 
 type PlaybackContext = {
   readonly timeline: TraceTimeline | null;
-  readonly currentFrameIndex: number;
+  readonly currentStep: number;
 };
 
 type PlaybackEvent =
@@ -29,30 +29,29 @@ export const playbackMachine = setup({
     hasLoadedTimeline: ({ event }) =>
       event.type === 'LOAD' && event.timeline !== null,
     hasTimeline: ({ context }) => context.timeline !== null,
-    hasNextFrame: ({ context }) =>
+    hasNextStep: ({ context }) =>
       context.timeline !== null &&
-      context.currentFrameIndex < context.timeline.commands.length,
-    hasPreviousFrame: ({ context }) => context.currentFrameIndex > 0,
-    nextFrameIsFinal: ({ context }) =>
+      context.currentStep < context.timeline.commands.length,
+    hasPreviousStep: ({ context }) => context.currentStep > 0,
+    nextStepIsFinal: ({ context }) =>
       context.timeline !== null &&
-      context.currentFrameIndex + 1 >= context.timeline.commands.length,
+      context.currentStep + 1 >= context.timeline.commands.length,
   },
   actions: {
     loadTimeline: assign(({ event }) => ({
       timeline: event.type === 'LOAD' ? event.timeline : null,
-      currentFrameIndex: 0,
+      currentStep: 0,
     })),
-    reset: assign({ currentFrameIndex: 0 }),
+    reset: assign({ currentStep: 0 }),
     advance: assign({
-      currentFrameIndex: ({ context }) =>
+      currentStep: ({ context }) =>
         Math.min(
-          context.currentFrameIndex + 1,
+          context.currentStep + 1,
           context.timeline?.commands.length ?? 0,
         ),
     }),
     rewind: assign({
-      currentFrameIndex: ({ context }) =>
-        Math.max(context.currentFrameIndex - 1, 0),
+      currentStep: ({ context }) => Math.max(context.currentStep - 1, 0),
     }),
   },
 }).createMachine({
@@ -60,7 +59,7 @@ export const playbackMachine = setup({
   initial: 'empty',
   context: {
     timeline: null,
-    currentFrameIndex: 0,
+    currentStep: 0,
   },
   on: {
     LOAD: [
@@ -80,15 +79,15 @@ export const playbackMachine = setup({
     paused: {
       on: {
         PLAY: [
-          { guard: 'hasNextFrame', target: 'playing' },
+          { guard: 'hasNextStep', target: 'playing' },
           {
             guard: 'hasTimeline',
             target: 'playing',
             actions: 'reset',
           },
         ],
-        NEXT: { guard: 'hasNextFrame', actions: 'advance' },
-        PREVIOUS: { guard: 'hasPreviousFrame', actions: 'rewind' },
+        NEXT: { guard: 'hasNextStep', actions: 'advance' },
+        PREVIOUS: { guard: 'hasPreviousStep', actions: 'rewind' },
         RESET: { actions: 'reset' },
       },
     },
@@ -96,12 +95,12 @@ export const playbackMachine = setup({
       after: {
         playbackStep: [
           {
-            guard: 'nextFrameIsFinal',
+            guard: 'nextStepIsFinal',
             target: 'paused',
             actions: 'advance',
           },
           {
-            guard: 'hasNextFrame',
+            guard: 'hasNextStep',
             target: 'playing',
             reenter: true,
             actions: 'advance',
@@ -113,12 +112,12 @@ export const playbackMachine = setup({
         PAUSE: 'paused',
         NEXT: {
           target: 'paused',
-          guard: 'hasNextFrame',
+          guard: 'hasNextStep',
           actions: 'advance',
         },
         PREVIOUS: {
           target: 'paused',
-          guard: 'hasPreviousFrame',
+          guard: 'hasPreviousStep',
           actions: 'rewind',
         },
         RESET: { target: 'paused', actions: 'reset' },
