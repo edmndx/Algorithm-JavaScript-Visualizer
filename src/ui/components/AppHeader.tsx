@@ -1,4 +1,10 @@
-export default function AppHeader() {
+import type { AlgorithmCatalogEntry } from '../../features/loadData';
+
+type AppHeaderProps = {
+  algorithm: AlgorithmCatalogEntry | null;
+};
+
+export default function AppHeader({ algorithm }: AppHeaderProps) {
   return (
     <header className="app-header">
       <div className="app-header-brand">
@@ -11,8 +17,12 @@ export default function AppHeader() {
 
       <div className="app-header-content">
         <div>
-          <h1 className="app-header-algorithm-title">Algorithm name</h1>
-          <p className="app-header-algorithm-meta">Category / Algorithm type</p>
+          <h1 className="app-header-algorithm-title">
+            {algorithm?.name ?? 'Select an algorithm'}
+          </h1>
+          <p className="app-header-algorithm-meta">
+            {algorithm?.category ?? 'Algorithm catalog'}
+          </p>
         </div>
         <div className="app-header-actions">
           <span className="app-header-control">Open</span>
