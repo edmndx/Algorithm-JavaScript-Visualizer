@@ -1,0 +1,46 @@
+.visualization-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.visualization-cell {
+  fill: color-mix(in oklab, var(--surface-2) 88%, transparent);
+  stroke: color-mix(in oklab, var(--accent-blue) 62%, var(--border));
+  stroke-width: 2;
+}
+
+.visualization-value,
+.visualization-label,
+.visualization-index,
+.visualization-marker {
+  font-family: var(--font-mono);
+  text-anchor: middle;
+}
+
+.visualization-value {
+  fill: var(--foreground);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.visualization-label,
+.visualization-index {
+  fill: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+
+.visualization-marker {
+  fill: color-mix(in oklab, var(--accent-blue) 75%, white);
+  font-size: 0.6875rem;
+}
+
+.visualization-compared .visualization-cell {
+  fill: color-mix(in oklab, var(--accent-red) 20%, var(--surface-2));
+  stroke: var(--accent-red);
+}
+
+.visualization-marked .visualization-cell {
+  stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
+}

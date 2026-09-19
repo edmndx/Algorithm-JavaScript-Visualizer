@@ -12,6 +12,7 @@ import {
 import type { TraceCommand, TraceSourceLocation } from '../protocol/traceTypes';
 
 export const DEFAULT_CHECKPOINT_INTERVAL = 100;
+export const TRACE_INITIALIZATION_COMMAND_COUNT = 2;
 
 export type TimelineCheckpoint = {
   readonly stepIndex: number;
@@ -47,6 +48,11 @@ export type TraceTimeline = {
   readonly commands: readonly TraceCommand[];
   readonly checkpoints: readonly TimelineCheckpoint[];
   readonly checkpointInterval: number;
+  readonly operationCount: number;
+  readonly structure: Extract<
+    TraceCommand,
+    { readonly type: 'scene.init' }
+  >['structure'];
 };
 
 export type TimelineBuildResult =
@@ -75,6 +81,11 @@ export function buildTimeline(
       ok: false,
       error: new TimelineBuildError(validation.issues),
     };
+  }
+
+  const initializationCommand = preparedCommands[0];
+  if (initializationCommand?.type !== 'scene.init') {
+    throw new Error('A validated timeline is missing scene.init.');
   }
 
   let scene: SceneState = createInitialScene();
@@ -117,8 +128,37 @@ export function buildTimeline(
       commands: preparedCommands,
       checkpoints,
       checkpointInterval,
+      operationCount:
+        preparedCommands.length - TRACE_INITIALIZATION_COMMAND_COUNT,
+      structure: initializationCommand.structure,
     },
   };
+}
+
+export function getPlaybackFrame(
+  timeline: TraceTimeline,
+  operationStep: number,
+): TimelineFrame {
+  if (
+    !Number.isInteger(operationStep) ||
+    operationStep < 0 ||
+    operationStep > timeline.operationCount
+  ) {
+    throw new RangeError(
+      `Playback step ${operationStep} is outside the range 0 to ${timeline.operationCount}.`,
+    );
+  }
+
+  return getFrame(
+    timeline,
+    operationStep + TRACE_INITIALIZATION_COMMAND_COUNT - 1,
+  );
+}
+
+export function getTraceInitializationCommands(
+  commands: readonly TraceCommand[],
+): readonly TraceCommand[] {
+  return commands.slice(0, TRACE_INITIALIZATION_COMMAND_COUNT);
 }
 
 export function getFrame(

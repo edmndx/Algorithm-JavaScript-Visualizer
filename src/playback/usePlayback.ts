@@ -1,12 +1,15 @@
 import { useMachine } from '@xstate/react';
 import { useCallback, useMemo } from 'react';
 
-import type { TraceCommand } from '../protocol/traceTypes';
-import { createInitialScene, type SceneState } from '../scene';
+import type { TraceCommand, TraceStructure } from '../protocol/traceTypes';
+import { createPlaceholderScene, type SceneState } from '../scene';
 import { playbackMachine } from './playbackMachine';
-import { buildTimeline, getFrame, type TimelineBuildResult } from './timeline';
+import {
+  buildTimeline,
+  getPlaybackFrame,
+  type TimelineBuildResult,
+} from './timeline';
 
-const EMPTY_SCENE = createInitialScene();
 const EMPTY_COMMANDS: readonly TraceCommand[] = [];
 
 export type PlaybackController = {
@@ -18,6 +21,7 @@ export type PlaybackController = {
   readonly canPlay: boolean;
   readonly canGoBack: boolean;
   readonly canGoForward: boolean;
+  initialize(structure: TraceStructure): void;
   load(commands: readonly TraceCommand[]): TimelineBuildResult;
   play(): void;
   pause(): void;
@@ -26,16 +30,20 @@ export type PlaybackController = {
   reset(): void;
 };
 
-export function usePlayback(): PlaybackController {
-  const [snapshot, send] = useMachine(playbackMachine);
-  const { timeline, currentStep } = snapshot.context;
+export function usePlayback(
+  initialStructure: TraceStructure,
+): PlaybackController {
+  const [snapshot, send] = useMachine(playbackMachine, {
+    input: { initialStructure },
+  });
+  const { timeline, currentStep, structure } = snapshot.context;
 
   const scene = useMemo(
     () =>
       timeline === null
-        ? EMPTY_SCENE
-        : getFrame(timeline, currentStep - 1).scene,
-    [currentStep, timeline],
+        ? createPlaceholderScene(structure)
+        : getPlaybackFrame(timeline, currentStep).scene,
+    [currentStep, structure, timeline],
   );
 
   const load = useCallback(
@@ -51,7 +59,7 @@ export function usePlayback(): PlaybackController {
     [send],
   );
 
-  const totalSteps = timeline?.commands.length ?? 0;
+  const totalSteps = timeline?.operationCount ?? 0;
 
   return {
     scene,
@@ -59,9 +67,11 @@ export function usePlayback(): PlaybackController {
     currentStep,
     totalSteps,
     isPlaying: snapshot.matches('playing'),
-    canPlay: timeline !== null,
+    canPlay: totalSteps > 0,
     canGoBack: currentStep > 0,
     canGoForward: timeline !== null && currentStep < totalSteps,
+    initialize: (nextStructure) =>
+      send({ type: 'INITIALIZE', structure: nextStructure }),
     load,
     play: () => send({ type: 'PLAY' }),
     pause: () => send({ type: 'PAUSE' }),
