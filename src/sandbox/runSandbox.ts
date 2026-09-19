@@ -1,6 +1,8 @@
+import { instrumentSource } from '../instrumentation/instrumentSource';
 import type { TraceStructure } from '../protocol/traceTypes';
 import {
   runValidatedCode,
+  runValidatedFrameCode,
   validateRunnerSource,
   type RunnerResult,
 } from '../runner/runner';
@@ -20,6 +22,18 @@ export async function runSandbox(
       'untraced',
       await runValidatedCode(validation.source),
     );
+  }
+
+  const instrumented = instrumentSource(validation.source, structure);
+  if (instrumented !== null) {
+    const result = await runValidatedFrameCode(
+      instrumented,
+      validation.source,
+      structure,
+    );
+    return result.ok
+      ? { status: 'frame-instrumented', result }
+      : { status: 'frame-execution-failure', result };
   }
 
   return toSandboxResult(

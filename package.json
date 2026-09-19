@@ -30,6 +30,7 @@
   "homepage": "https://github.com/edmndx/Algorithm-JavaScript-Visualizer#readme",
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "acorn": "^8.18.0",
     "comlink": "^4.4.2",
     "d3": "^7.9.0",
     "lucide-react": "^1.24.0",
