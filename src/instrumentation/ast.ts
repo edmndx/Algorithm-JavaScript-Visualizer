@@ -110,6 +110,22 @@ export function isIdentifierReference(
   );
 }
 
+export function isDirectMember(
+  node: AnyNode | null | undefined,
+  objectName: string,
+  propertyName: string,
+): boolean {
+  return (
+    node?.type === 'MemberExpression' &&
+    !node.computed &&
+    !node.optional &&
+    node.object.type === 'Identifier' &&
+    node.object.name === objectName &&
+    node.property.type === 'Identifier' &&
+    node.property.name === propertyName
+  );
+}
+
 function isDirectEval(node: AnyNode): boolean {
   return (
     node.type === 'CallExpression' &&
@@ -156,7 +172,7 @@ export function isRootedInvocation(node: AnyNode, root: string): boolean {
   );
 }
 
-export function writesRootTarget(node: AnyNode, root: string): boolean {
+function writesRootTarget(node: AnyNode, root: string): boolean {
   if (node.type === 'Identifier') return node.name === root;
   if (node.type === 'ChainExpression') {
     return writesRootTarget(node.expression, root);
@@ -214,6 +230,22 @@ export function isDirectRootMethodCall(
   );
 }
 
+export function isNumberCall(call: CallExpression): boolean {
+  return call.callee.type === 'Identifier' && call.callee.name === 'Number';
+}
+
+export function isMathTruncCall(call: CallExpression): boolean {
+  return (
+    call.callee.type === 'MemberExpression' &&
+    !call.callee.computed &&
+    !call.callee.optional &&
+    call.callee.object.type === 'Identifier' &&
+    call.callee.object.name === 'Math' &&
+    call.callee.property.type === 'Identifier' &&
+    call.callee.property.name === 'trunc'
+  );
+}
+
 export function isDirectConsoleArgument(
   node: AnyNode,
   parent: AnyNode | null,
@@ -237,54 +269,6 @@ export function isDirectConsoleArgument(
     parent.callee.property.name === 'warn' ||
     parent.callee.property.name === 'error'
   );
-}
-
-export function directInstrumentationScopes(
-  program: Program,
-): readonly DirectInstrumentationScope[] {
-  return [
-    { body: program, owner: null },
-    ...program.body.flatMap((statement) =>
-      statement.type === 'FunctionDeclaration' && statement.id !== null
-        ? [{ body: statement.body, owner: statement }]
-        : [],
-    ),
-  ];
-}
-
-export function isCalledExactlyOnce(
-  program: Program,
-  declaration: FunctionDeclaration,
-): boolean {
-  if (declaration.id === null) return false;
-
-  const name = declaration.id.name;
-  let calls = 0;
-  let unsafeReference = false;
-
-  walkAst(program, (node, parent, _grandparent, insideUnsupportedScope) => {
-    if (node === declaration.id || !isIdentifierReference(node, parent, name)) {
-      return;
-    }
-
-    if (insideUnsupportedScope) {
-      unsafeReference = true;
-      return;
-    }
-
-    if (
-      parent?.type === 'CallExpression' &&
-      parent.callee === node &&
-      !parent.optional
-    ) {
-      calls += 1;
-      return;
-    }
-
-    unsafeReference = true;
-  });
-
-  return calls === 1 && !unsafeReference;
 }
 
 export function isDirectWriteTarget(

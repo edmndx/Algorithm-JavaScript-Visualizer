@@ -1,5 +1,10 @@
 import type { TraceCommand } from '../protocol';
-import type { ConsoleEntry } from '../runner/runner';
+
+export type ConsoleEntry = {
+  readonly sequence: number;
+  readonly level: 'log' | 'error';
+  readonly text: string;
+};
 
 export function createTraceOperationEntries(
   commands: readonly TraceCommand[],
@@ -13,7 +18,7 @@ export function createTraceOperationEntries(
     .reverse();
 }
 
-export function formatTraceOperationType(type: TraceCommand['type']): string {
+function formatTraceOperationType(type: TraceCommand['type']): string {
   if (type === 'scene.init') return 'Initialize';
   if (type === 'stack.compare') return 'Peek';
 

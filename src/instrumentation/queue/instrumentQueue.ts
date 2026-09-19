@@ -1,0 +1,402 @@
+import {
+  type AnyNode,
+  type MemberExpression,
+  type VariableDeclaration,
+} from 'acorn';
+
+import { TRACE_LIMITS } from '../../protocol';
+import {
+  createIdentifierAllocator,
+  hasUnsafeInstrumentationSyntax,
+  isDirectConsoleArgument,
+  isIdentifierReference,
+  isLengthMember,
+  isRootWrite,
+  isRootedInvocation,
+  sourceLine,
+  staticTraceValue,
+  walkAst,
+  type DirectInstrumentationScope,
+} from '../ast';
+import { applySourceEdits, type SourceEdit } from '../edits';
+import {
+  matchQueueCall,
+  matchQueueCursorDequeue,
+  matchQueuePeek,
+  type QueueCursorDequeue,
+  type QueueOperation,
+} from './queueMatchers';
+import {
+  hasSafePrimaryRootUsage,
+  primaryOperationBindings,
+  type PrimaryOperationBinding,
+  type ValidVisualizationSource,
+} from '../sourceContract';
+
+type QueueCandidate = {
+  readonly declaration: VariableDeclaration;
+  readonly declarationLine: number;
+  readonly initialRoot: string;
+  readonly root: string;
+  readonly operations: readonly QueueOperation[];
+};
+
+export function instrumentQueue(
+  source: string,
+  contract: ValidVisualizationSource,
+): string | null {
+  const { program } = contract;
+  if (hasUnsafeInstrumentationSyntax(program)) return null;
+
+  const initializer = contract.declaration.declarations[0]?.init;
+  if (
+    initializer?.type !== 'ArrayExpression' ||
+    !initializer.elements.every((element) => staticTraceValue(element) !== null)
+  ) {
+    return null;
+  }
+  const declaration = contract.declaration;
+
+  const candidates = primaryOperationBindings(contract)
+    .map((binding) => analyzeQueue(contract, declaration, binding))
+    .filter((candidate): candidate is QueueCandidate => candidate !== null);
+
+  if (candidates.length !== 1) return null;
+
+  const [candidate] = candidates;
+  if (candidate === undefined) return null;
+
+  const allocateIdentifier = createIdentifierAllocator(program, '__traceQueue');
+  const isTraceValue = allocateIdentifier();
+  const enqueueHelper = candidate.operations.some(
+    ({ kind }) => kind === 'enqueue',
+  )
+    ? allocateIdentifier()
+    : null;
+  const dequeueHelper = candidate.operations.some(
+    ({ kind }) => kind === 'dequeue',
+  )
+    ? allocateIdentifier()
+    : null;
+  const dequeueBackHelper = candidate.operations.some(
+    ({ kind }) => kind === 'dequeue-back',
+  )
+    ? allocateIdentifier()
+    : null;
+  const cursorDequeueHelper = candidate.operations.some(
+    ({ kind }) => kind === 'cursor-dequeue',
+  )
+    ? allocateIdentifier()
+    : null;
+  const peekHelper = candidate.operations.some(({ kind }) => kind === 'peek')
+    ? allocateIdentifier()
+    : null;
+  const helperSource = renderQueueHelpers(
+    candidate,
+    isTraceValue,
+    enqueueHelper,
+    dequeueHelper,
+    dequeueBackHelper,
+    cursorDequeueHelper,
+    peekHelper,
+  );
+  const operationEdits: SourceEdit[] = [];
+
+  for (const operation of candidate.operations) {
+    const replacement = queueOperationReplacement(
+      source,
+      operation,
+      candidate.root,
+      enqueueHelper,
+      dequeueHelper,
+      dequeueBackHelper,
+      cursorDequeueHelper,
+      peekHelper,
+    );
+    if (replacement === null) return null;
+
+    operationEdits.push({
+      start:
+        operation.kind === 'peek' || operation.kind === 'cursor-dequeue'
+          ? operation.member.start
+          : operation.call.start,
+      end:
+        operation.kind === 'peek' || operation.kind === 'cursor-dequeue'
+          ? operation.member.end
+          : operation.call.end,
+      text: replacement,
+    });
+  }
+
+  const edits: SourceEdit[] = [
+    {
+      start: candidate.declaration.end,
+      end: candidate.declaration.end,
+      text: helperSource,
+    },
+    ...operationEdits,
+  ];
+
+  return applySourceEdits(source, edits);
+}
+
+function renderQueueHelpers(
+  candidate: QueueCandidate,
+  isTraceValue: string,
+  enqueue: string | null,
+  dequeue: string | null,
+  dequeueBack: string | null,
+  cursorDequeue: string | null,
+  peek: string | null,
+): string {
+  return (
+    `;\ntrace.initialize({ structure: 'queue', context: { input: { kind: 'sequence', values: ${candidate.initialRoot} } }, source: { line: ${candidate.declarationLine} } });\n` +
+    `trace.createQueue({ values: ${candidate.initialRoot}, source: { line: ${candidate.declarationLine} } });\n` +
+    `const ${isTraceValue} = (value) => typeof value === 'string' ? value.length <= ${TRACE_LIMITS.stringLength} : typeof value === 'number' && value - value === 0;\n` +
+    (enqueue === null
+      ? ''
+      : `const ${enqueue} = (method, line, ...values) => { const result = method(...values); for (const value of values) if (${isTraceValue}(value)) trace.enqueue({ value, source: { line } }); return result; };\n`) +
+    (dequeue === null
+      ? ''
+      : `const ${dequeue} = (method, line) => { const value = method(); if (${isTraceValue}(value)) trace.dequeue({ source: { line } }); return value; };\n`) +
+    (dequeueBack === null
+      ? ''
+      : `const ${dequeueBack} = (method, line) => { const value = method(); if (${isTraceValue}(value)) trace.dequeueBack({ source: { line } }); return value; };\n`) +
+    (cursorDequeue === null
+      ? ''
+      : `const ${cursorDequeue} = (values, index, line) => { const value = values[index]; if (${isTraceValue}(value)) trace.dequeue({ source: { line } }); return value; };\n`) +
+    (peek === null
+      ? ''
+      : `const ${peek} = (values, line) => { const value = values[0]; if (${isTraceValue}(value)) trace.peek({ source: { line } }); return value; };\n`)
+  );
+}
+
+function analyzeQueue(
+  contract: ValidVisualizationSource,
+  declaration: VariableDeclaration,
+  binding: PrimaryOperationBinding,
+): QueueCandidate | null {
+  const root = binding.root;
+  const declarationLine = sourceLine(declaration);
+  if (declarationLine === null) return null;
+
+  const operations: QueueOperation[] = [];
+
+  walkAst(
+    binding.scope.body,
+    (node, parent, _grandparent, insideUnsupportedScope) => {
+      if (insideUnsupportedScope) return;
+
+      const cursorDequeue = matchQueueCursorDequeue(node, parent, root);
+      if (cursorDequeue !== null) {
+        operations.push(cursorDequeue);
+        return;
+      }
+
+      const call = matchQueueCall(node, root);
+      if (call !== null) {
+        operations.push(call);
+        return;
+      }
+
+      const peek = matchQueuePeek(node, parent, root);
+      if (peek !== null) operations.push(peek);
+    },
+  );
+
+  if (
+    !operations.some(
+      ({ kind }) =>
+        kind === 'dequeue' ||
+        kind === 'dequeue-back' ||
+        kind === 'cursor-dequeue' ||
+        kind === 'peek',
+    ) ||
+    (operations.some(({ kind }) => kind === 'cursor-dequeue') &&
+      operations.some(({ kind }) => kind === 'dequeue-back')) ||
+    operations.some((operation) =>
+      operation.kind === 'peek' || operation.kind === 'cursor-dequeue'
+        ? operation.member.start < declaration.end
+        : operation.call.start < declaration.end,
+    ) ||
+    !hasValidQueueCursorUsage(binding.scope, operations, root) ||
+    !hasSafePrimaryRootUsage(contract, binding) ||
+    hasUnsafeQueueUsage(binding.scope.body, declaration, operations, root)
+  ) {
+    return null;
+  }
+
+  return {
+    declaration,
+    declarationLine,
+    initialRoot: contract.identifier,
+    root,
+    operations,
+  };
+}
+
+function hasValidQueueCursorUsage(
+  scope: DirectInstrumentationScope,
+  operations: readonly QueueOperation[],
+  root: string,
+): boolean {
+  const cursorReads = operations.filter(
+    (operation): operation is QueueCursorDequeue =>
+      operation.kind === 'cursor-dequeue',
+  );
+  if (cursorReads.length === 0) return true;
+
+  const cursorName = cursorReads[0]?.cursor.name;
+  if (
+    cursorName === undefined ||
+    cursorReads.some(({ cursor }) => cursor.name !== cursorName)
+  ) {
+    return false;
+  }
+
+  const declarations = scope.body.body.filter(
+    (statement): statement is VariableDeclaration =>
+      statement.type === 'VariableDeclaration' &&
+      statement.kind === 'let' &&
+      statement.declarations.length === 1 &&
+      statement.declarations[0]?.id.type === 'Identifier' &&
+      statement.declarations[0].id.name === cursorName &&
+      statement.declarations[0].init?.type === 'Literal' &&
+      statement.declarations[0].init.value === 0,
+  );
+  const declaration = declarations[0];
+  if (
+    declarations.length !== 1 ||
+    declaration?.type !== 'VariableDeclaration'
+  ) {
+    return false;
+  }
+
+  const cursorIdentifier = declaration.declarations[0]?.id;
+  if (cursorIdentifier?.type !== 'Identifier') return false;
+
+  const supportedUpdates = new Set(cursorReads.map(({ update }) => update));
+  let valid = true;
+
+  walkAst(scope.body, (node, parent, _grandparent, insideUnsupportedScope) => {
+    if (!isIdentifierReference(node, parent, cursorName)) return;
+
+    if (insideUnsupportedScope) {
+      valid = false;
+      return;
+    }
+
+    if (
+      node === cursorIdentifier ||
+      (parent?.type === 'UpdateExpression' &&
+        parent.argument === node &&
+        supportedUpdates.has(parent)) ||
+      isQueueCursorBound(node, parent, root)
+    ) {
+      return;
+    }
+
+    valid = false;
+  });
+
+  return valid;
+}
+
+function isQueueCursorBound(
+  node: AnyNode,
+  parent: AnyNode | null,
+  root: string,
+): boolean {
+  if (
+    parent?.type !== 'BinaryExpression' ||
+    parent.left !== node ||
+    parent.operator !== '<' ||
+    parent.right.type !== 'MemberExpression' ||
+    parent.right.object.type !== 'Identifier' ||
+    parent.right.object.name !== root
+  ) {
+    return false;
+  }
+
+  return isLengthMember(parent.right);
+}
+
+function hasUnsafeQueueUsage(
+  rootNode: AnyNode,
+  declaration: VariableDeclaration,
+  operations: readonly QueueOperation[],
+  root: string,
+): boolean {
+  const supportedCalls = new Set(
+    operations.flatMap((operation) =>
+      operation.kind === 'peek' || operation.kind === 'cursor-dequeue'
+        ? []
+        : [operation.call],
+    ),
+  );
+  const supportedMembers = new Set(operations.map(({ member }) => member));
+  let unsafe = false;
+
+  walkAst(rootNode, (node, parent) => {
+    if (
+      (isRootedInvocation(node, root) &&
+        (node.type !== 'CallExpression' || !supportedCalls.has(node))) ||
+      isRootWrite(node, root) ||
+      (isIdentifierReference(node, parent, root) &&
+        !isSafeQueueReference(node, parent, declaration, supportedMembers))
+    ) {
+      unsafe = true;
+    }
+  });
+
+  return unsafe;
+}
+
+function isSafeQueueReference(
+  node: AnyNode,
+  parent: AnyNode | null,
+  declaration: VariableDeclaration,
+  supportedMembers: ReadonlySet<MemberExpression>,
+): boolean {
+  return (
+    node === declaration.declarations[0]?.id ||
+    isDirectConsoleArgument(node, parent) ||
+    (parent?.type === 'MemberExpression' &&
+      parent.object === node &&
+      (supportedMembers.has(parent) || isLengthMember(parent)))
+  );
+}
+
+function queueOperationReplacement(
+  source: string,
+  operation: QueueOperation,
+  root: string,
+  enqueueHelper: string | null,
+  dequeueHelper: string | null,
+  dequeueBackHelper: string | null,
+  cursorDequeueHelper: string | null,
+  peekHelper: string | null,
+): string | null {
+  switch (operation.kind) {
+    case 'enqueue':
+      return enqueueHelper === null
+        ? null
+        : `${enqueueHelper}(${root}.push.bind(${root}), ${operation.line}, ${operation.call.arguments.map((argument) => source.slice(argument.start, argument.end)).join(', ')})`;
+    case 'dequeue':
+      return dequeueHelper === null
+        ? null
+        : `${dequeueHelper}(${root}.shift.bind(${root}), ${operation.line})`;
+    case 'dequeue-back':
+      return dequeueBackHelper === null
+        ? null
+        : `${dequeueBackHelper}(${root}.pop.bind(${root}), ${operation.line})`;
+    case 'cursor-dequeue':
+      return cursorDequeueHelper === null
+        ? null
+        : `${cursorDequeueHelper}(${root}, ${source.slice(operation.update.start, operation.update.end)}, ${operation.line})`;
+    case 'peek':
+      return peekHelper === null
+        ? null
+        : `${peekHelper}(${root}, ${operation.line})`;
+  }
+}

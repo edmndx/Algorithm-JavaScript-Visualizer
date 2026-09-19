@@ -14,8 +14,6 @@ import {
 
 import { VISUALIZATION_VIEW_BOX_TRANSITION } from './visualizationTransition';
 
-export { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
-
 type VisualScene = {
   readonly isPlaceholder?: true;
 };
@@ -23,11 +21,16 @@ type VisualScene = {
 export type D3RenderFunction<Scene extends VisualScene> = (
   svg: SVGSVGElement,
   scene: Scene,
-  options?: { readonly animate: boolean },
+  context?: RenderContext<Scene>,
 ) => void;
 
+type RenderContext<Scene extends VisualScene> = {
+  readonly animate: boolean;
+  readonly previousScene: Scene | null;
+};
+
 export type PlaybackPosition = {
-  readonly sequence: object;
+  readonly sequence: readonly unknown[];
   readonly step: number;
 };
 
@@ -35,7 +38,7 @@ type D3SceneProps<Scene extends VisualScene> = {
   readonly scene: Scene;
   readonly render: D3RenderFunction<Scene>;
   readonly label: string;
-  readonly playbackPosition?: PlaybackPosition;
+  readonly playbackPosition?: PlaybackPosition | undefined;
 };
 
 export default function D3Scene<Scene extends VisualScene>({
@@ -47,6 +50,7 @@ export default function D3Scene<Scene extends VisualScene>({
   const svgRef = useRef<SVGSVGElement>(null);
   const zoom = useContext(VisualizationZoomContext);
   const previousPosition = useRef<PlaybackPosition | undefined>(undefined);
+  const previousScene = useRef<Scene | null>(null);
   const previousRender = useRef(render);
   const dragPosition = useRef<{
     readonly pointerId: number;
@@ -93,8 +97,10 @@ export default function D3Scene<Scene extends VisualScene>({
         previous !== undefined &&
         playbackPosition.sequence === previous.sequence &&
         playbackPosition.step === previous.step + 1,
+      previousScene: previousScene.current,
     });
     previousPosition.current = playbackPosition;
+    previousScene.current = scene;
     if (scene.isPlaceholder === true) {
       svg.setAttribute('data-visualization-placeholder', 'true');
     } else {

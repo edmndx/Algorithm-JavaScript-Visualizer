@@ -12,7 +12,7 @@ import { getVisualizationCapacityMessage } from './visualizationLimits';
 
 type SceneRendererProps = {
   readonly scene: SceneState;
-  readonly playbackPosition?: PlaybackPosition;
+  readonly playbackPosition?: PlaybackPosition | undefined;
 };
 
 export default function SceneRenderer({
@@ -54,6 +54,7 @@ export default function SceneRenderer({
         <D3Scene
           key={scene.structure}
           label="Stack visualization"
+          playbackPosition={playbackPosition}
           render={renderStack}
           scene={scene}
         />

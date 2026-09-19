@@ -1,30 +1,37 @@
+import { useState } from 'react';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
-import { useCatalog } from '../../features/useCatalog';
+import {
+  algorithmCatalog,
+  algorithmCategories,
+  type AlgorithmCatalogEntry,
+  type AlgorithmCategory,
+  type AlgorithmId,
+} from '../../data/catalog';
 
 type CatalogSidebarProps = {
-  activeAlgorithmId: import('../../features/loadData').AlgorithmId | null;
-  onSelectAlgorithm: (
-    algorithm: import('../../features/loadData').AlgorithmCatalogEntry,
-  ) => void;
+  activeAlgorithmId: AlgorithmId | null;
+  onSelectAlgorithm: (algorithm: AlgorithmCatalogEntry) => void;
 };
 
 export default function CatalogSidebar({
   activeAlgorithmId,
   onSelectAlgorithm,
 }: CatalogSidebarProps) {
-  const {
-    algorithms,
-    categories,
-    visibleAlgorithms,
-    searchQuery,
-    setSearchQuery,
-    selectedCategory,
-    setSelectedCategory,
-  } = useCatalog();
-  const hasSearchQuery = searchQuery.trim().length > 0;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] =
+    useState<AlgorithmCategory | null>(algorithmCategories[0] ?? null);
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+  const hasSearchQuery = normalizedQuery !== '';
+  const visibleAlgorithms = hasSearchQuery
+    ? algorithmCatalog.filter((algorithm) =>
+        [algorithm.name, algorithm.description].some((searchableText) =>
+          searchableText.toLocaleLowerCase().includes(normalizedQuery),
+        ),
+      )
+    : algorithmCatalog;
 
   function renderAlgorithmList(
-    algorithmsToRender: readonly import('../../features/loadData').AlgorithmCatalogEntry[],
+    algorithmsToRender: readonly AlgorithmCatalogEntry[],
   ) {
     return (
       <ul className="catalog-sidebar-algorithm-list">
@@ -81,9 +88,9 @@ export default function CatalogSidebar({
           </section>
         ) : (
           <section>
-            {categories.map((category) => {
+            {algorithmCategories.map((category) => {
               const isOpen = selectedCategory === category;
-              const categoryAlgorithms = algorithms.filter(
+              const categoryAlgorithms = algorithmCatalog.filter(
                 (algorithm) => algorithm.category === category,
               );
 

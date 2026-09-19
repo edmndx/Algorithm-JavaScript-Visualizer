@@ -1,16 +1,27 @@
 import { instrumentArray } from './instrumentArray';
-import { instrumentGraph } from './instrumentGraph';
+import { instrumentGraph } from './graph/instrumentGraph';
 import { instrumentHashTable } from './instrumentHashTable';
-import { instrumentLinkedList } from './instrumentLinkedList';
-import { instrumentMatrix } from './instrumentMatrix';
-import { instrumentQueue } from './instrumentQueue';
+import { instrumentLinkedList } from './linkedList/instrumentLinkedList';
+import { instrumentMatrix } from './matrix/instrumentMatrix';
+import { instrumentQueue } from './queue/instrumentQueue';
 import { instrumentStack } from './instrumentStack';
-import { instrumentTree } from './instrumentTree';
-import type {
-  InstrumentableStructure,
-  InstrumentationResult,
-} from './instrumentationTypes';
-import { validateVisualizationSource } from './sourceContract';
+import { instrumentTree } from './tree/instrumentTree';
+import type { InstrumentableStructure } from './instrumentationTypes';
+import {
+  validateVisualizationSource,
+  type SourceContractDiagnostic,
+} from './sourceContract';
+
+type InstrumentationResult =
+  | {
+      readonly status: 'instrumented' | 'unsupported';
+      readonly source: string;
+    }
+  | {
+      readonly status: 'source-contract-error';
+      readonly source: string;
+      readonly diagnostic: SourceContractDiagnostic;
+    };
 
 export function instrumentJavaScript(
   source: string,
@@ -27,33 +38,31 @@ export function instrumentJavaScript(
     };
   }
 
-  const { program } = contract;
-
   let instrumented: string | null;
   switch (structure) {
     case 'array':
-      instrumented = instrumentArray(source, program, contract);
+      instrumented = instrumentArray(source, contract);
       break;
     case 'matrix':
-      instrumented = instrumentMatrix(source, program, contract);
+      instrumented = instrumentMatrix(source, contract);
       break;
     case 'stack':
-      instrumented = instrumentStack(source, program, contract);
+      instrumented = instrumentStack(source, contract);
       break;
     case 'queue':
-      instrumented = instrumentQueue(source, program, contract);
+      instrumented = instrumentQueue(source, contract);
       break;
     case 'graph':
-      instrumented = instrumentGraph(source, program, contract);
+      instrumented = instrumentGraph(source, contract);
       break;
     case 'hash-table':
-      instrumented = instrumentHashTable(source, program, contract);
+      instrumented = instrumentHashTable(source, contract);
       break;
     case 'tree':
-      instrumented = instrumentTree(source, program, contract);
+      instrumented = instrumentTree(source, contract);
       break;
     case 'linked-list':
-      instrumented = instrumentLinkedList(source, program, contract);
+      instrumented = instrumentLinkedList(source, contract);
       break;
   }
 

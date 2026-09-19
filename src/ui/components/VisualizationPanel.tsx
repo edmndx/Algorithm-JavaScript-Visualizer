@@ -1,6 +1,7 @@
 import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import type { SceneState } from '../../scene';
 import { useMemo, useState } from 'react';
+import type { PlaybackPosition } from '../../visualization/D3Scene';
 import {
   clampZoom,
   MAX_ZOOM,
@@ -13,7 +14,7 @@ import PlaybackControls from './PlaybackControls';
 
 type VisualizationPanelProps = {
   readonly scene: SceneState;
-  readonly playbackSequence?: object;
+  readonly playbackSequence?: readonly unknown[];
   readonly currentStep: number;
   readonly totalSteps: number;
   readonly isPlaying: boolean;
@@ -43,18 +44,6 @@ export default function VisualizationPanel({
   onReset,
 }: VisualizationPanelProps) {
   const [expanded, setExpanded] = useState(false);
-  const [viewport, setViewport] = useState({
-    structure: scene.structure,
-    zoom: 1,
-  });
-  if (viewport.structure !== scene.structure) {
-    setViewport({ structure: scene.structure, zoom: 1 });
-  }
-  const changeZoom = (factor: number) =>
-    setViewport((current) => ({
-      ...current,
-      zoom: clampZoom(current.zoom * factor),
-    }));
   const playbackPosition = useMemo(
     () =>
       playbackSequence === undefined
@@ -104,6 +93,50 @@ export default function VisualizationPanel({
         }
       }}
     >
+      <VisualizationViewport
+        key={scene.structure}
+        scene={scene}
+        playbackPosition={playbackPosition}
+        expanded={expanded}
+        onToggleExpanded={() => setExpanded((value) => !value)}
+      />
+
+      <PlaybackControls
+        currentStep={currentStep}
+        totalSteps={totalSteps}
+        isPlaying={isPlaying}
+        canPlay={canPlay}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        onPlay={onPlay}
+        onPause={onPause}
+        onNext={onNext}
+        onPrevious={onPrevious}
+        onReset={onReset}
+      />
+    </section>
+  );
+}
+
+type VisualizationViewportProps = {
+  readonly scene: SceneState;
+  readonly playbackPosition?: PlaybackPosition | undefined;
+  readonly expanded: boolean;
+  readonly onToggleExpanded: () => void;
+};
+
+function VisualizationViewport({
+  scene,
+  playbackPosition,
+  expanded,
+  onToggleExpanded,
+}: VisualizationViewportProps) {
+  const [zoom, setZoom] = useState(1);
+  const changeZoom = (factor: number) =>
+    setZoom((current) => clampZoom(current * factor));
+
+  return (
+    <>
       <div
         className="visualization-panel-toolbar"
         role="group"
@@ -114,7 +147,7 @@ export default function VisualizationPanel({
           className="visualization-toolbar-placeholder"
           title="Zoom in"
           aria-label="Zoom in"
-          disabled={viewport.zoom >= MAX_ZOOM}
+          disabled={zoom >= MAX_ZOOM}
           onClick={() => changeZoom(ZOOM_STEP)}
         >
           <ZoomIn className="visualization-toolbar-icon" aria-hidden="true" />
@@ -124,7 +157,7 @@ export default function VisualizationPanel({
           className="visualization-toolbar-placeholder"
           title="Zoom out"
           aria-label="Zoom out"
-          disabled={viewport.zoom <= MIN_ZOOM}
+          disabled={zoom <= MIN_ZOOM}
           onClick={() => changeZoom(1 / ZOOM_STEP)}
         >
           <ZoomOut className="visualization-toolbar-icon" aria-hidden="true" />
@@ -137,7 +170,7 @@ export default function VisualizationPanel({
             expanded ? 'Collapse visualization' : 'Expand visualization'
           }
           aria-expanded={expanded}
-          onClick={() => setExpanded((value) => !value)}
+          onClick={onToggleExpanded}
         >
           <Maximize2
             className="visualization-toolbar-icon"
@@ -161,24 +194,10 @@ export default function VisualizationPanel({
             ) : null}
           </div>
         ) : null}
-        <VisualizationZoomContext.Provider value={viewport.zoom}>
+        <VisualizationZoomContext.Provider value={zoom}>
           <SceneRenderer scene={scene} playbackPosition={playbackPosition} />
         </VisualizationZoomContext.Provider>
       </div>
-
-      <PlaybackControls
-        currentStep={currentStep}
-        totalSteps={totalSteps}
-        isPlaying={isPlaying}
-        canPlay={canPlay}
-        canGoBack={canGoBack}
-        canGoForward={canGoForward}
-        onPlay={onPlay}
-        onPause={onPause}
-        onNext={onNext}
-        onPrevious={onPrevious}
-        onReset={onReset}
-      />
-    </section>
+    </>
   );
 }

@@ -1,7 +1,8 @@
 import { select } from 'd3';
 
 import type { TreeSceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
+import { indexMarkerNames } from './indexMarkerNames';
 import {
   createStringAttributeTween,
   createTransformTween,
@@ -12,6 +13,7 @@ import {
   type PositionedTreeNode,
 } from './treeLayout';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
 
 type RenderedTreeNode = PositionedTreeNode & {
   readonly markerNames: readonly string[];
@@ -49,14 +51,7 @@ function boundsLabel(
 
 export const renderTree: D3RenderFunction<TreeSceneState> = (svg, scene) => {
   const layout = createTreeLayout(scene);
-  const markerNames = new Map<string, string[]>();
-  for (const [name, nodeIds] of Object.entries(scene.markers)) {
-    for (const nodeId of nodeIds) {
-      const names = markerNames.get(nodeId) ?? [];
-      names.push(name);
-      markerNames.set(nodeId, names);
-    }
-  }
+  const markerNames = indexMarkerNames(scene.markers);
 
   const comparedIds = new Set(scene.comparedNodeIds ?? []);
   const visitedIds = new Set(scene.visitedNodeIds);

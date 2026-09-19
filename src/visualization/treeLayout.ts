@@ -18,7 +18,7 @@ export type PositionedTreeLink = {
   readonly target: PositionedTreeNode;
 };
 
-export type TreeLayout = {
+type TreeLayout = {
   readonly nodes: readonly PositionedTreeNode[];
   readonly links: readonly PositionedTreeLink[];
   readonly width: number;

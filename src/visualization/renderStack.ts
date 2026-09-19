@@ -1,9 +1,12 @@
 import { select } from 'd3';
 
 import type { StackSceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
+import { indexMarkerNames } from './indexMarkerNames';
 import { createTransformTween } from './transformTween';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
+import { renderContext } from './renderContext';
 
 type StackItemDatum = {
   readonly id: string;
@@ -38,15 +41,13 @@ function stackItemTransform(
     : base;
 }
 
-export const renderStack: D3RenderFunction<StackSceneState> = (svg, scene) => {
-  const markerNames = new Map<number, string[]>();
-  for (const [name, indices] of Object.entries(scene.markers)) {
-    for (const index of indices) {
-      const names = markerNames.get(index) ?? [];
-      names.push(name);
-      markerNames.set(index, names);
-    }
-  }
+export const renderStack: D3RenderFunction<StackSceneState> = (
+  svg,
+  scene,
+  options,
+) => {
+  const animate = options?.animate !== false;
+  const markerNames = indexMarkerNames(scene.markers);
 
   const items: readonly StackItemDatum[] = scene.values.map((value, index) => {
     const id = scene.itemIds[index];
@@ -76,7 +77,7 @@ export const renderStack: D3RenderFunction<StackSceneState> = (svg, scene) => {
   updateVisualizationViewBox(
     svg,
     `0 ${minimumY} ${VIEW_WIDTH} ${maximumY - minimumY}`,
-    hadRoot,
+    hadRoot && animate,
   );
   const root = selection
     .selectAll<SVGGElement, null>('g.visualization-stack')
@@ -136,11 +137,11 @@ export const renderStack: D3RenderFunction<StackSceneState> = (svg, scene) => {
         const group = enter
           .append('g')
           .attr('class', 'visualization-stack-item')
-          .style('opacity', hadRoot ? 0 : 1)
+          .style('opacity', hadRoot && animate ? 0 : 1)
           .attr('transform', (item) =>
-            hadRoot
+            hadRoot && animate
               ? stackItemTransform(item.index + 1)
-              : stackItemTransform(item.index),
+              : stackDatumTransform(item),
           );
         group.append('rect').attr('class', 'visualization-cell');
         group.append('text').attr('class', 'visualization-value');
@@ -148,8 +149,9 @@ export const renderStack: D3RenderFunction<StackSceneState> = (svg, scene) => {
         return group;
       },
       (update) => update,
-      (exit) =>
-        exit
+      (exit) => {
+        if (!animate) return exit.remove();
+        return exit
           .transition()
           .duration(VISUALIZATION_TRANSITION_MS)
           .attrTween(
@@ -159,7 +161,8 @@ export const renderStack: D3RenderFunction<StackSceneState> = (svg, scene) => {
             ),
           )
           .style('opacity', 0)
-          .remove(),
+          .remove();
+      },
     )
     .attr('data-item-id', (item) => item.id)
     .classed('visualization-peeked', (item) => item.isPeeked)
@@ -174,23 +177,21 @@ export const renderStack: D3RenderFunction<StackSceneState> = (svg, scene) => {
     )
     .classed('visualization-marked', (item) => item.markerNames.length > 0);
 
-  groups
-    .transition()
-    .duration(VISUALIZATION_TRANSITION_MS)
-    .style('opacity', 1)
-    .attrTween(
-      'transform',
-      createTransformTween<StackItemDatum>((item) =>
-        stackItemTransform(
-          item.index,
-          item.comparisonResult !== null
-            ? 'compared'
-            : item.isPeeked
-              ? 'peeked'
-              : 'normal',
-        ),
-      ),
-    );
+  if (animate) {
+    groups
+      .transition()
+      .duration(VISUALIZATION_TRANSITION_MS)
+      .style('opacity', 1)
+      .attrTween(
+        'transform',
+        createTransformTween<StackItemDatum>(stackDatumTransform),
+      );
+  } else {
+    groups
+      .interrupt()
+      .style('opacity', 1)
+      .attr('transform', stackDatumTransform);
+  }
 
   groups
     .select<SVGRectElement>('rect.visualization-cell')
@@ -208,4 +209,16 @@ export const renderStack: D3RenderFunction<StackSceneState> = (svg, scene) => {
     .attr('x', ITEM_WIDTH / 2)
     .attr('y', ITEM_HEIGHT - 5)
     .text((item) => item.markerNames.join(', '));
+  renderContext(svg, scene);
 };
+
+function stackDatumTransform(item: StackItemDatum): string {
+  return stackItemTransform(
+    item.index,
+    item.comparisonResult !== null
+      ? 'compared'
+      : item.isPeeked
+        ? 'peeked'
+        : 'normal',
+  );
+}

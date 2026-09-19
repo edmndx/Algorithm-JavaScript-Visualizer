@@ -3,7 +3,6 @@ import {
   type CallExpression,
   type Expression,
   type MemberExpression,
-  type Program,
   type VariableDeclaration,
 } from 'acorn';
 
@@ -59,13 +58,21 @@ const BUCKET_COUNT = 17;
 
 export function instrumentHashTable(
   source: string,
-  program: Program,
   contract: ValidVisualizationSource,
 ): string | null {
+  const { program } = contract;
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const declaration = findMapDeclaration(contract);
-  if (declaration === null) return null;
+  const initializer = contract.declaration.declarations[0]?.init;
+  if (
+    initializer?.type !== 'NewExpression' ||
+    initializer.callee.type !== 'Identifier' ||
+    initializer.callee.name !== 'Map' ||
+    initializer.arguments.length !== 0
+  ) {
+    return null;
+  }
+  const declaration = contract.declaration;
 
   const candidates = primaryOperationBindings(contract)
     .map((binding) => analyzeHashTable(contract, declaration, binding))
@@ -396,18 +403,6 @@ function containsCall(outer: CallExpression, inner: CallExpression): boolean {
   return (
     outer !== inner && outer.start <= inner.start && outer.end >= inner.end
   );
-}
-
-function findMapDeclaration(
-  contract: ValidVisualizationSource,
-): VariableDeclaration | null {
-  const initializer = contract.declaration.declarations[0]?.init;
-  return initializer?.type === 'NewExpression' &&
-    initializer.callee.type === 'Identifier' &&
-    initializer.callee.name === 'Map' &&
-    initializer.arguments.length === 0
-    ? contract.declaration
-    : null;
 }
 
 function hasUnsafeHashTableUsage(

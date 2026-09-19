@@ -6,7 +6,6 @@ import {
   type Identifier,
   type IfStatement,
   type MemberExpression,
-  type Program,
   type UpdateExpression,
   type VariableDeclaration,
 } from 'acorn';
@@ -64,6 +63,8 @@ type ArrayMarkMatch = {
   readonly kind: 'mark';
   readonly statement: IfStatement;
   readonly index: Expression;
+  readonly value: Expression;
+  readonly operator: 'eq' | 'neq' | 'lt' | 'lte' | 'gt' | 'gte';
   readonly line: number;
 };
 
@@ -89,13 +90,15 @@ const SUPPORTED_ASSIGNMENT_OPERATORS = new Set([
 
 export function instrumentArray(
   source: string,
-  program: Program,
   contract: ValidVisualizationSource,
 ): string | null {
+  const { program } = contract;
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const trackedDeclaration = findTrackedArrayDeclaration(contract);
-  if (trackedDeclaration === null) return null;
+  if (!isSupportedInitialArray(contract.declaration.declarations[0]?.init)) {
+    return null;
+  }
+  const trackedDeclaration = contract.declaration;
 
   const trackedDeclarator = trackedDeclaration.declarations[0];
   const declarationLine = sourceLine(trackedDeclaration);
@@ -114,7 +117,7 @@ export function instrumentArray(
     {
       start: trackedDeclaration.end,
       end: trackedDeclaration.end,
-      text: `;\ntrace.initialize({ structure: 'array', source: { line: ${declarationLine} } });\ntrace.createArray({ values: ${contract.identifier}, source: { line: ${declarationLine} } });\n`,
+      text: `;\ntrace.initialize({ structure: 'array', context: { input: { kind: 'sequence', values: ${contract.identifier} } }, source: { line: ${declarationLine} } });\ntrace.createArray({ values: ${contract.identifier}, source: { line: ${declarationLine} } });\n`,
     },
     ...candidate.operations.map((operation) =>
       operationInsertion(source, operation, candidate.binding.root),
@@ -154,11 +157,35 @@ function matchArrayMark(
         : null;
   const line = sourceLine(node.test);
 
-  return member === null ||
+  if (
+    member === null ||
     line === null ||
     !isSupportedIndexExpression(member.property)
-    ? null
-    : { kind: 'mark', statement: node, index: member.property, line };
+  )
+    return null;
+  const memberOnLeft = left === member;
+  const value = memberOnLeft ? node.test.right : leftValue;
+  if (value === null) return null;
+  return {
+    kind: 'mark',
+    statement: node,
+    index: member.property,
+    value,
+    operator: normalizeArrayOperator(node.test.operator, memberOnLeft),
+    line,
+  };
+}
+
+function normalizeArrayOperator(
+  operator: string,
+  memberOnLeft: boolean,
+): ArrayMarkMatch['operator'] {
+  if (operator === '===') return 'eq';
+  if (operator === '!==') return 'neq';
+  if (operator === '<') return memberOnLeft ? 'lt' : 'gt';
+  if (operator === '<=') return memberOnLeft ? 'lte' : 'gte';
+  if (operator === '>') return memberOnLeft ? 'gt' : 'lt';
+  return memberOnLeft ? 'gte' : 'lte';
 }
 
 function isSupportedProbeValue(expression: Expression): boolean {
@@ -309,14 +336,6 @@ function matchArraySet(
     index: node.argument.property,
     line,
   };
-}
-
-function findTrackedArrayDeclaration(
-  contract: ValidVisualizationSource,
-): VariableDeclaration | null {
-  return isSupportedInitialArray(contract.declaration.declarations[0]?.init)
-    ? contract.declaration
-    : null;
 }
 
 function analyzeArrayBinding(
@@ -484,10 +503,11 @@ function operationInsertion(
   }
 
   if (operation.kind === 'mark') {
+    const index = expressionSource(source, operation.index);
     return {
       start: operation.statement.start,
       end: operation.statement.start,
-      text: `trace.mark({ marker: 'probe', indices: [${expressionSource(source, operation.index)}], source: { line: ${operation.line} } });\n${indentation}`,
+      text: `trace.focus({ index: ${index}, source: { line: ${operation.line} } });\ntrace.compareValue({ index: ${index}, value: ${expressionSource(source, operation.value)}, operator: '${operation.operator}', source: { line: ${operation.line} } });\ntrace.mark({ marker: 'probe', indices: [${index}], source: { line: ${operation.line} } });\n${indentation}`,
     };
   }
 

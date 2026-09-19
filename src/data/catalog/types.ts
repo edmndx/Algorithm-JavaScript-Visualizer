@@ -2,12 +2,12 @@ import { z } from 'zod';
 
 import { instrumentableStructureSchema } from '../../instrumentation/instrumentationTypes';
 
-export const algorithmCategorySchema = z
+const algorithmCategorySchema = z
   .string()
   .trim()
   .min(1, 'Algorithm category is required.');
 
-export const algorithmIdSchema = z
+const algorithmIdSchema = z
   .string()
   .trim()
   .min(1, 'Algorithm ID is required.')
@@ -17,7 +17,7 @@ export const algorithmIdSchema = z
   )
   .brand<'AlgorithmId'>();
 
-export const algorithmCatalogEntrySchema = z.strictObject({
+const algorithmCatalogEntrySchema = z.strictObject({
   id: algorithmIdSchema,
   name: z.string().trim().min(1, 'Algorithm name is required.'),
   category: algorithmCategorySchema,
@@ -45,14 +45,6 @@ export const algorithmCatalogSchema = z
     });
   });
 
-export const commandChipSchema = z.strictObject({
-  label: z.string().trim().min(1, 'Command-chip label is required.'),
-  command: z.string().trim().min(1, 'Command-chip command is required.'),
-});
-
-export const commandChipsSchema = z.array(commandChipSchema);
-
 export type AlgorithmCategory = z.infer<typeof algorithmCategorySchema>;
 export type AlgorithmId = z.infer<typeof algorithmIdSchema>;
 export type AlgorithmCatalogEntry = z.infer<typeof algorithmCatalogEntrySchema>;
-export type CommandChip = z.infer<typeof commandChipSchema>;

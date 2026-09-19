@@ -4,11 +4,11 @@ import {
   type CallExpression,
   type Expression,
   type MemberExpression,
-  type Program,
   type VariableDeclaration,
 } from 'acorn';
 
-import { TRACE_LIMITS, type StackComparisonOperator } from '../protocol';
+import { TRACE_LIMITS } from '../protocol';
+import type { StackComparisonOperator } from '../protocol';
 import {
   createIdentifierAllocator,
   hasUnsafeInstrumentationSyntax,
@@ -16,6 +16,8 @@ import {
   isDirectRootMethodCall,
   isIdentifierReference,
   isLengthMember,
+  isMathTruncCall,
+  isNumberCall,
   isRootWrite,
   isRootedInvocation,
   sourceLine,
@@ -66,13 +68,20 @@ type StackCandidate = {
 
 export function instrumentStack(
   source: string,
-  program: Program,
   contract: ValidVisualizationSource,
 ): string | null {
+  const { program } = contract;
   if (hasUnsafeInstrumentationSyntax(program)) return null;
 
-  const declaration = findStackDeclaration(contract);
-  if (declaration === null) return null;
+  const initializer = contract.declaration.declarations[0]?.init;
+  if (
+    initializer?.type !== 'ArrayExpression' ||
+    initializer.elements.length > TRACE_LIMITS.collectionItems ||
+    !initializer.elements.every((element) => staticTraceValue(element) !== null)
+  ) {
+    return null;
+  }
+  const declaration = contract.declaration;
 
   const candidates = primaryOperationBindings(contract)
     .map((binding) => analyzeStack(contract, declaration, binding))
@@ -149,7 +158,7 @@ function renderStackHelpers(
   compare: string | null,
 ): string {
   return (
-    `;\ntrace.initialize({ structure: 'stack', source: { line: ${candidate.declarationLine} } });\n` +
+    `;\ntrace.initialize({ structure: 'stack', context: { input: { kind: 'sequence', values: ${candidate.initialRoot} } }, source: { line: ${candidate.declarationLine} } });\n` +
     `trace.createStack({ values: ${candidate.initialRoot}, source: { line: ${candidate.declarationLine} } });\n` +
     `const ${isTraceValue} = (value) => typeof value === 'string' ? value.length <= ${TRACE_LIMITS.stringLength} : typeof value === 'number' && value - value === 0;\n` +
     (push === null
@@ -353,22 +362,6 @@ function isSupportedStackValue(expression: Expression): boolean {
   );
 }
 
-function isNumberCall(call: CallExpression): boolean {
-  return call.callee.type === 'Identifier' && call.callee.name === 'Number';
-}
-
-function isMathTruncCall(call: CallExpression): boolean {
-  return (
-    call.callee.type === 'MemberExpression' &&
-    !call.callee.computed &&
-    !call.callee.optional &&
-    call.callee.object.type === 'Identifier' &&
-    call.callee.object.name === 'Math' &&
-    call.callee.property.type === 'Identifier' &&
-    call.callee.property.name === 'trunc'
-  );
-}
-
 function matchStackPeek(
   node: AnyNode,
   parent: AnyNode | null,
@@ -417,17 +410,6 @@ function matchStackPeek(
         members: [node, node.property.left],
         line,
       };
-}
-
-function findStackDeclaration(
-  contract: ValidVisualizationSource,
-): VariableDeclaration | null {
-  const initializer = contract.declaration.declarations[0]?.init;
-  return initializer?.type === 'ArrayExpression' &&
-    initializer.elements.length <= TRACE_LIMITS.collectionItems &&
-    initializer.elements.every((element) => staticTraceValue(element) !== null)
-    ? contract.declaration
-    : null;
 }
 
 function hasUnsafeStackUsage(

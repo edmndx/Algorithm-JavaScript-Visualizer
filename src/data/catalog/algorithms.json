@@ -16,7 +16,7 @@
     "code": "const array = [-2, 1, -3, 4, -1, 2, 1, -5, 4];\n\nfunction maximumSubarray(values) {\n  let bestSum = values[0];\n\n  for (let index = 1; index < values.length; index++) {\n    if (values[index - 1] + values[index] > values[index]) {\n      values[index] = values[index - 1] + values[index];\n    }\n\n    if (values[index] > bestSum) bestSum = values[index];\n  }\n\n  return bestSum;\n}\n\nconsole.log(maximumSubarray(array));"
   },
   {
-    "id": "bubble-sort",
+    "id": "two-pointers",
     "name": "Two Pointers",
     "category": "Array",
     "structure": "array",
@@ -40,7 +40,7 @@
     "code": "const matrix = [\n  [1, 2, 3],\n  [4, 5, 6],\n  [7, 8, 9]\n];\n\nfunction rotateImage(values) {\n  for (let row = 0; row < values.length; row++) {\n    for (let column = row + 1; column < values.length; column++) {\n      [values[row][column], values[column][row]] = [\n        values[column][row],\n        values[row][column]\n      ];\n    }\n  }\n\n  for (let row = 0; row < values.length; row++) {\n    for (let left = 0, right = values.length - 1; left < right; left++, right--) {\n      [values[row][left], values[row][right]] = [\n        values[row][right],\n        values[row][left]\n      ];\n    }\n  }\n}\n\nrotateImage(matrix);\nconsole.log(matrix);"
   },
   {
-    "id": "matrix-transpose",
+    "id": "matrix-zeroing",
     "name": "Matrix Zeroing",
     "category": "Matrix",
     "structure": "matrix",
@@ -48,7 +48,7 @@
     "code": "const matrix = [\n  [1, 1, 1],\n  [1, 0, 1],\n  [1, 1, 1]\n];\n\nfunction setMatrixZeroes(values) {\n  const zeroRows = new Set();\n  const zeroColumns = new Set();\n\n  for (let row = 0; row < values.length; row++) {\n    for (let column = 0; column < values[row].length; column++) {\n      if (values[row][column] === 0) {\n        zeroRows.add(row);\n        zeroColumns.add(column);\n      }\n    }\n  }\n\n  for (let row = 0; row < values.length; row++) {\n    for (let column = 0; column < values[row].length; column++) {\n      if (zeroRows.has(row) || zeroColumns.has(column)) {\n        values[row][column] = 0;\n      }\n    }\n  }\n}\n\nsetMatrixZeroes(matrix);\nconsole.log(matrix);"
   },
   {
-    "id": "in-order-traversal",
+    "id": "maximum-depth-binary-tree",
     "name": "Maximum Depth of Binary Tree",
     "category": "Tree",
     "structure": "tree",
@@ -56,7 +56,7 @@
     "code": "const tree = {\n  value: 3,\n  left: { value: 9, left: null, right: null },\n  right: {\n    value: 20,\n    left: { value: 15, left: null, right: null },\n    right: { value: 7, left: null, right: null }\n  }\n};\n\nfunction maxDepth(node) {\n  if (node === null) return 0;\n  return 1 + Math.max(maxDepth(node.left), maxDepth(node.right));\n}\n\nconsole.log(maxDepth(tree));"
   },
   {
-    "id": "pre-order-traversal",
+    "id": "binary-search-tree-validation",
     "name": "Binary Search Tree Validation",
     "category": "Tree",
     "structure": "tree",
@@ -64,7 +64,7 @@
     "code": "const tree = {\n  value: 5,\n  left: {\n    value: 3,\n    left: { value: 2, left: null, right: null },\n    right: { value: 4, left: null, right: null }\n  },\n  right: {\n    value: 8,\n    left: { value: 7, left: null, right: null },\n    right: { value: 9, left: null, right: null }\n  }\n};\n\nfunction isValidBst(node, lower, upper) {\n  if (node === null) return true;\n  if (node.value <= lower || node.value >= upper) return false;\n\n  return (\n    isValidBst(node.left, lower, node.value) &&\n    isValidBst(node.right, node.value, upper)\n  );\n}\n\nconsole.log(isValidBst(tree, -Infinity, Infinity));"
   },
   {
-    "id": "post-order-traversal",
+    "id": "level-order-traversal",
     "name": "Level-Order Traversal (BFS)",
     "category": "Tree",
     "structure": "tree",
@@ -77,10 +77,10 @@
     "category": "Stack",
     "structure": "stack",
     "description": "Match every closing bracket with the latest unmatched opening bracket.",
-    "code": "const stack = ['('];\nconst text = '{[]})';\n\nfunction isValidParentheses(values, input) {\n  const pairs = { ')': '(', ']': '[', '}': '{' };\n\n  for (const character of input) {\n    if (character === '(' || character === '[' || character === '{') {\n      values.push(character);\n    } else if (values.pop() !== pairs[character]) {\n      return false;\n    }\n  }\n\n  return values.length === 0;\n}\n\nconsole.log(isValidParentheses(stack, text));"
+    "code": "const stack = [];\nconst text = '({[]})';\n\nfunction isValidParentheses(values, input) {\n  const pairs = { ')': '(', ']': '[', '}': '{' };\n\n  for (const character of input) {\n    if (character === '(' || character === '[' || character === '{') {\n      values.push(character);\n    } else if (values.at(-1) !== pairs[character]) {\n      values.push(character);\n      return false;\n    } else {\n      values.pop();\n    }\n  }\n\n  return values.length === 0;\n}\n\nconsole.log(isValidParentheses(stack, text));"
   },
   {
-    "id": "postfix-evaluation",
+    "id": "monotonic-stack",
     "name": "Monotonic Stack",
     "category": "Stack",
     "structure": "stack",
@@ -88,7 +88,7 @@
     "code": "const stack = [0];\nconst temperatures = [73, 74, 75, 71, 69, 72, 76, 73];\n\nfunction dailyTemperatures(indices, values) {\n  const result = Array(values.length).fill(0);\n\n  for (let index = 1; index < values.length; index++) {\n    while (indices.length > 0 && values[index] > values[indices.at(-1)]) {\n      const previousIndex = indices.pop();\n      result[previousIndex] = index - previousIndex;\n    }\n\n    indices.push(index);\n  }\n\n  while (indices.length > 0) indices.pop();\n  return result;\n}\n\nconsole.log(dailyTemperatures(stack, temperatures));"
   },
   {
-    "id": "next-greater-element",
+    "id": "largest-rectangle-histogram",
     "name": "Largest Rectangle in Histogram",
     "category": "Stack",
     "structure": "stack",
@@ -96,7 +96,7 @@
     "code": "const stack = [0];\nconst heights = [2, 1, 5, 6, 2, 3];\n\nfunction largestRectangleArea(indices, values) {\n  let bestArea = 0;\n\n  for (let index = 1; index <= values.length; index++) {\n    const currentHeight = index === values.length ? 0 : values[index];\n\n    while (\n      indices.length > 0 &&\n      currentHeight < values[indices.at(-1)]\n    ) {\n      const height = values[indices.pop()];\n      const leftBoundary = indices.length === 0 ? -1 : indices.at(-1);\n      bestArea = Math.max(bestArea, height * (index - leftBoundary - 1));\n    }\n\n    indices.push(index);\n  }\n\n  while (indices.length > 0) indices.pop();\n  return bestArea;\n}\n\nconsole.log(largestRectangleArea(stack, heights));"
   },
   {
-    "id": "breadth-first-search",
+    "id": "topological-sort-kahn",
     "name": "Topological Sort (Kahn's Algorithm)",
     "category": "Graph",
     "structure": "graph",
@@ -104,7 +104,7 @@
     "code": "const graph = {\n  '0': ['1', '2'],\n  '1': ['3'],\n  '2': ['3'],\n  '3': []\n};\n\nfunction canFinish(adjacency) {\n  const indegree = {};\n  for (const course of Object.keys(adjacency)) {\n    indegree[course] = 0;\n  }\n\n  for (const prerequisite of Object.keys(adjacency)) {\n    for (const course of adjacency[prerequisite]) {\n      indegree[course]++;\n    }\n  }\n\n  const queue = [];\n  for (const course of Object.keys(adjacency)) {\n    if (indegree[course] === 0) queue.push(course);\n  }\n\n  let completed = 0;\n  while (queue.length > 0) {\n    const prerequisite = queue.shift();\n    completed++;\n\n    for (const course of adjacency[prerequisite]) {\n      indegree[course]--;\n      if (indegree[course] === 0) queue.push(course);\n    }\n  }\n\n  return completed === Object.keys(adjacency).length;\n}\n\nconsole.log(canFinish(graph));"
   },
   {
-    "id": "generate-binary-numbers",
+    "id": "sliding-window-maximum",
     "name": "Sliding Window Maximum",
     "category": "Queue",
     "structure": "queue",
@@ -112,7 +112,7 @@
     "code": "const queue = [0];\nconst values = [1, 3, -1, -3, 5, 3, 6, 7];\nconst windowSize = 3;\n\nfunction maxSlidingWindow(indices, input, size) {\n  const result = [];\n\n  for (let index = 1; index < input.length; index++) {\n    while (indices.length > 0 && indices[0] <= index - size) {\n      indices.shift();\n    }\n\n    while (indices.length > 0) {\n      const previousIndex = indices.pop();\n      if (input[previousIndex] > input[index]) {\n        indices.push(previousIndex);\n        break;\n      }\n    }\n\n    indices.push(index);\n\n    if (index >= size - 1) {\n      result.push(input[indices[0]]);\n    }\n  }\n\n  while (indices.length > 0) indices.shift();\n  return result;\n}\n\nconsole.log(maxSlidingWindow(queue, values, windowSize));"
   },
   {
-    "id": "reverse-queue",
+    "id": "grid-breadth-first-search",
     "name": "Grid Breadth-First Search (BFS)",
     "category": "Queue",
     "structure": "queue",
@@ -136,7 +136,7 @@
     "code": "const linkedList = {\n  value: 1,\n  next: { value: 2, next: { value: 3, next: null } }\n};\nlinkedList.next.next.next = linkedList.next;\n\nfunction hasCycle(head) {\n  let slow = head;\n  let fast = head;\n\n  while (fast !== null && fast.next !== null) {\n    slow = slow.next;\n    fast = fast.next.next;\n\n    if (slow === fast) return true;\n  }\n\n  return false;\n}\n\nconsole.log(hasCycle(linkedList));\nlinkedList.next.next.next = null;"
   },
   {
-    "id": "linked-list-middle",
+    "id": "merge-two-sorted-lists",
     "name": "Merge Two Sorted Lists",
     "category": "Linked List",
     "structure": "linked-list",
@@ -160,7 +160,7 @@
     "code": "const hashTable = new Map();\nconst words = ['eat', 'tea', 'tan', 'ate', 'nat', 'bat'];\n\nfunction groupAnagrams(groupsByKey, input) {\n  const groups = [];\n\n  for (const word of input) {\n    const key = [...word].sort().join('');\n    let groupIndex = groupsByKey.get(key);\n\n    if (groupIndex === undefined) {\n      groupIndex = groups.length;\n      groups.push([]);\n      groupsByKey.set(key, groupIndex);\n    }\n\n    groups[groupIndex].push(word);\n  }\n\n  return groups;\n}\n\nconsole.log(groupAnagrams(hashTable, words));"
   },
   {
-    "id": "frequency-counter",
+    "id": "longest-consecutive-sequence",
     "name": "Longest Consecutive Sequence",
     "category": "Hash Table",
     "structure": "hash-table",

@@ -1,5 +1,4 @@
-import { useMachine } from '@xstate/react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useReducer } from 'react';
 
 import type {
   TraceCommand,
@@ -7,7 +6,7 @@ import type {
   TraceStructure,
 } from '../protocol/traceTypes';
 import { createPlaceholderScene, type SceneState } from '../scene';
-import { playbackMachine } from './playbackMachine';
+import { createPlaybackState, playbackReducer } from './playbackReducer';
 import {
   buildTimeline,
   getPlaybackFrame,
@@ -16,6 +15,7 @@ import {
 } from './timeline';
 
 const EMPTY_COMMANDS: readonly TraceCommand[] = [];
+const PLAYBACK_STEP_DELAY_MS = 750;
 
 export type PlaybackController = {
   readonly scene: SceneState;
@@ -39,10 +39,22 @@ export type PlaybackController = {
 export function usePlayback(
   initialStructure: TraceStructure,
 ): PlaybackController {
-  const [snapshot, send] = useMachine(playbackMachine, {
-    input: { initialStructure },
-  });
-  const { timeline, currentStep, structure } = snapshot.context;
+  const [state, dispatch] = useReducer(
+    playbackReducer,
+    initialStructure,
+    createPlaybackState,
+  );
+  const { timeline, currentStep, structure, status } = state;
+
+  useEffect(() => {
+    if (status !== 'playing') return;
+
+    const timeout = window.setTimeout(
+      () => dispatch({ type: 'tick' }),
+      PLAYBACK_STEP_DELAY_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [currentStep, status, timeline]);
 
   const scene = useMemo(
     () =>
@@ -52,18 +64,15 @@ export function usePlayback(
     [currentStep, structure, timeline],
   );
 
-  const load = useCallback(
-    (commands: readonly TraceCommand[]) => {
-      const result = buildTimeline(commands);
+  const load = useCallback((commands: readonly TraceCommand[]) => {
+    const result = buildTimeline(commands);
 
-      if (result.ok) {
-        send({ type: 'LOAD', timeline: result.timeline });
-      }
+    if (result.ok) {
+      dispatch({ type: 'load', timeline: result.timeline });
+    }
 
-      return result;
-    },
-    [send],
-  );
+    return result;
+  }, []);
 
   const totalSteps = timeline?.operationCount ?? 0;
 
@@ -76,17 +85,17 @@ export function usePlayback(
         ? null
         : getPlaybackSourceLocation(timeline, currentStep),
     totalSteps,
-    isPlaying: snapshot.matches('playing'),
+    isPlaying: status === 'playing',
     canPlay: totalSteps > 0,
     canGoBack: currentStep > 0,
     canGoForward: timeline !== null && currentStep < totalSteps,
     initialize: (nextStructure) =>
-      send({ type: 'INITIALIZE', structure: nextStructure }),
+      dispatch({ type: 'initialize', structure: nextStructure }),
     load,
-    play: () => send({ type: 'PLAY' }),
-    pause: () => send({ type: 'PAUSE' }),
-    next: () => send({ type: 'NEXT' }),
-    previous: () => send({ type: 'PREVIOUS' }),
-    reset: () => send({ type: 'RESET' }),
+    play: () => dispatch({ type: 'play' }),
+    pause: () => dispatch({ type: 'pause' }),
+    next: () => dispatch({ type: 'next' }),
+    previous: () => dispatch({ type: 'previous' }),
+    reset: () => dispatch({ type: 'reset' }),
   };
 }

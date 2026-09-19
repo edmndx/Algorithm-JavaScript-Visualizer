@@ -8,6 +8,8 @@ import type {
   LinkedListKind,
   LinkedListNode,
   MatrixPosition,
+  InputContext,
+  ComparisonOperator,
   StackComparisonOperator,
   TraceStructure,
   TraceValue,
@@ -18,14 +20,18 @@ import type {
 /* Shared                                                                      */
 /* -------------------------------------------------------------------------- */
 
-export type SceneMessage = {
+type SceneMessage = {
   readonly text: string;
   readonly level: 'info' | 'warning' | 'error';
 };
 
-export type SceneStateBase = {
+type SceneStateBase = {
   readonly title: string | null;
   readonly message: SceneMessage | null;
+  readonly context: {
+    readonly input: InputContext | null;
+    readonly metrics: Readonly<Record<string, TraceValue>>;
+  };
   readonly isPlaceholder?: true;
 };
 
@@ -33,7 +39,7 @@ export type SceneStateBase = {
 /* Empty scene                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export type EmptySceneState = SceneStateBase & {
+type EmptySceneState = SceneStateBase & {
   readonly structure: null;
 };
 
@@ -45,10 +51,22 @@ export type ArraySceneState = SceneStateBase & {
   readonly structure: 'array';
 
   readonly values: readonly TraceValue[];
+  readonly originalValues: readonly TraceValue[];
   readonly itemIds: readonly string[];
   readonly labels: readonly string[];
 
   readonly comparedIndices: readonly [number, number] | null;
+  readonly focus: {
+    readonly index: number | null;
+    readonly pointers: Readonly<Record<string, number>>;
+    readonly range: readonly [number, number] | null;
+  };
+  readonly valueComparison: {
+    readonly index: number;
+    readonly value: TraceValue;
+    readonly operator: ComparisonOperator;
+    readonly matches: boolean;
+  } | null;
 
   readonly markers: Readonly<Record<string, readonly number[]>>;
 };
@@ -64,6 +82,15 @@ export type MatrixSceneState = SceneStateBase & {
   readonly itemIds: readonly (readonly string[])[];
 
   readonly comparedPositions: readonly [MatrixPosition, MatrixPosition] | null;
+  readonly visitedPositions: readonly MatrixPosition[];
+  readonly region: {
+    readonly start: MatrixPosition;
+    readonly end: MatrixPosition;
+  } | null;
+  readonly lines: {
+    readonly rows: readonly number[];
+    readonly columns: readonly number[];
+  };
 
   readonly markers: Readonly<Record<string, readonly MatrixPosition[]>>;
 };
@@ -89,6 +116,11 @@ export type TreeSceneState = SceneStateBase & {
 
   readonly depthByNodeId: Readonly<Record<string, number>>;
   readonly activeDepthNodeId: string | null;
+  readonly currentNodeId: string | null;
+  readonly frontier: {
+    readonly nodeIds: readonly string[];
+    readonly level: number;
+  } | null;
 
   readonly visitedNodeIds: readonly string[];
 
@@ -117,6 +149,12 @@ export type GraphSceneState = SceneStateBase & {
   readonly edgeMarkers: Readonly<Record<string, readonly string[]>>;
 
   readonly distances: Readonly<Record<string, number | null>>;
+  readonly nodeMetrics: Readonly<
+    Record<string, Readonly<Record<string, number>>>
+  >;
+  readonly frontier: readonly string[];
+  readonly currentNodeId: string | null;
+  readonly currentEdgeId: string | null;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -179,6 +217,12 @@ export type LinkedListSceneState = SceneStateBase & {
   readonly nodes: readonly LinkedListNode[];
 
   readonly visitedNodeIds: readonly string[];
+  readonly pointers: Readonly<Record<string, string | null>>;
+  readonly comparison: {
+    readonly nodeIds: readonly [string, string];
+    readonly operator: ComparisonOperator;
+    readonly matches: boolean;
+  } | null;
 
   readonly markers: Readonly<Record<string, readonly string[]>>;
 };
@@ -197,6 +241,11 @@ export type HashTableSceneState = SceneStateBase & {
 
   readonly visitedBucketIndices: readonly number[];
   readonly visitedEntryIds: readonly string[];
+  readonly probe: {
+    readonly key: TraceValue;
+    readonly bucketIndex: number;
+    readonly matchedEntryId: string | null;
+  } | null;
 
   readonly markers: Readonly<Record<string, readonly string[]>>;
 };
@@ -225,16 +274,25 @@ export function createInitialScene(): EmptySceneState {
     structure: null,
     title: null,
     message: null,
+    context: { input: null, metrics: {} },
   };
 }
 
 export function createInitializedScene(
   structure: TraceStructure,
   title: string | null = null,
+  context: {
+    readonly input?: InputContext | undefined;
+    readonly metrics?: Readonly<Record<string, TraceValue>> | undefined;
+  } = {},
 ): Exclude<SceneState, EmptySceneState> {
   const base = {
     title,
     message: null,
+    context: {
+      input: context.input ?? null,
+      metrics: context.metrics ?? {},
+    },
   } as const;
 
   switch (structure) {
@@ -243,9 +301,12 @@ export function createInitializedScene(
         ...base,
         structure,
         values: [],
+        originalValues: [],
         itemIds: [],
         labels: [],
         comparedIndices: null,
+        focus: { index: null, pointers: {}, range: null },
+        valueComparison: null,
         markers: {},
       };
     case 'matrix':
@@ -255,6 +316,9 @@ export function createInitializedScene(
         values: [],
         itemIds: [],
         comparedPositions: null,
+        visitedPositions: [],
+        region: null,
+        lines: { rows: [], columns: [] },
         markers: {},
       };
     case 'tree':
@@ -267,6 +331,8 @@ export function createInitializedScene(
         boundsCheck: null,
         depthByNodeId: {},
         activeDepthNodeId: null,
+        currentNodeId: null,
+        frontier: null,
         visitedNodeIds: [],
         markers: {},
       };
@@ -283,6 +349,10 @@ export function createInitializedScene(
         nodeMarkers: {},
         edgeMarkers: {},
         distances: {},
+        nodeMetrics: {},
+        frontier: [],
+        currentNodeId: null,
+        currentEdgeId: null,
       };
     case 'stack':
       return {
@@ -315,6 +385,8 @@ export function createInitializedScene(
         tailId: null,
         nodes: [],
         visitedNodeIds: [],
+        pointers: {},
+        comparison: null,
         markers: {},
       };
     case 'hash-table':
@@ -326,6 +398,7 @@ export function createInitializedScene(
         entries: [],
         visitedBucketIndices: [],
         visitedEntryIds: [],
+        probe: null,
         markers: {},
       };
   }
@@ -338,21 +411,4 @@ export function createPlaceholderScene(
     ...createInitializedScene(structure),
     isPlaceholder: true,
   };
-}
-
-/* -------------------------------------------------------------------------- */
-/* Type helpers                                                                */
-/* -------------------------------------------------------------------------- */
-
-export function hasSceneStructure(
-  scene: SceneState,
-): scene is Exclude<SceneState, EmptySceneState> {
-  return scene.structure !== null;
-}
-
-export function isSceneStructure<Structure extends TraceStructure>(
-  scene: SceneState,
-  structure: Structure,
-): scene is Extract<SceneState, { readonly structure: Structure }> {
-  return scene.structure === structure;
 }

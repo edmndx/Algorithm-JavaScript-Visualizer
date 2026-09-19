@@ -27,6 +27,8 @@ const edgeIdSchema = nonEmptyStringSchema;
 
 const markerSchema = nonEmptyStringSchema;
 
+const pointerNameSchema = nonEmptyStringSchema;
+
 function boundedArray<Schema extends z.ZodType>(schema: Schema) {
   return z.array(schema).max(TRACE_LIMITS.collectionItems);
 }
@@ -97,6 +99,37 @@ export const matrixPositionSchema = z
     column: indexSchema,
   })
   .strict();
+
+const inputSequenceSchema = z
+  .object({
+    kind: z.literal('sequence'),
+    values: boundedArray(traceValueSchema),
+    pointers: z.record(pointerNameSchema, indexSchema).optional(),
+    range: z.tuple([indexSchema, indexSchema]).optional(),
+  })
+  .strict();
+
+const inputGridSchema = z
+  .object({
+    kind: z.literal('grid'),
+    values: z
+      .array(z.array(traceValueSchema).max(TRACE_LIMITS.matrixColumns))
+      .max(TRACE_LIMITS.matrixRows)
+      .refine(
+        (rows) =>
+          rows.reduce((cells, row) => cells + row.length, 0) <=
+          TRACE_LIMITS.matrixCells,
+        { message: 'Input grid exceeds the protocol cell limit.' },
+      ),
+    pointers: z.record(pointerNameSchema, matrixPositionSchema).optional(),
+    range: z
+      .object({ start: matrixPositionSchema, end: matrixPositionSchema })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+const inputContextSchema = z.union([inputSequenceSchema, inputGridSchema]);
 
 /* -------------------------------------------------------------------------- */
 /* Tree                                                                        */
@@ -194,13 +227,20 @@ export const hashTableEntrySchema = z
 /* Scene                                                                       */
 /* -------------------------------------------------------------------------- */
 
-export const sceneInitCommandSchema = z
+const sceneInitCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
     type: z.literal('scene.init'),
     structure: traceStructureSchema,
     title: nonEmptyStringSchema.optional(),
+    context: z
+      .object({
+        input: inputContextSchema.optional(),
+        metrics: z.record(nonEmptyStringSchema, traceValueSchema).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -208,7 +248,7 @@ export const sceneInitCommandSchema = z
 /* Array                                                                       */
 /* -------------------------------------------------------------------------- */
 
-export const arrayCreateCommandSchema = z
+const arrayCreateCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -218,7 +258,7 @@ export const arrayCreateCommandSchema = z
   })
   .strict();
 
-export const arrayCompareCommandSchema = z
+const arrayCompareCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -227,7 +267,7 @@ export const arrayCompareCommandSchema = z
   })
   .strict();
 
-export const arraySwapCommandSchema = z
+const arraySwapCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -236,7 +276,7 @@ export const arraySwapCommandSchema = z
   })
   .strict();
 
-export const arraySetCommandSchema = z
+const arraySetCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -246,7 +286,7 @@ export const arraySetCommandSchema = z
   })
   .strict();
 
-export const arrayMarkCommandSchema = z
+const arrayMarkCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -256,11 +296,31 @@ export const arrayMarkCommandSchema = z
   })
   .strict();
 
+const arrayFocusCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('array.focus'),
+    index: indexSchema.nullable().optional(),
+    pointers: z.record(pointerNameSchema, indexSchema).optional(),
+    range: z.tuple([indexSchema, indexSchema]).optional(),
+  })
+  .strict();
+
+const arrayCompareValueCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('array.compareValue'),
+    index: indexSchema,
+    value: traceValueSchema,
+    operator: z.enum(['eq', 'neq', 'lt', 'lte', 'gt', 'gte']),
+  })
+  .strict();
+
 /* -------------------------------------------------------------------------- */
 /* Matrix / Grid                                                               */
 /* -------------------------------------------------------------------------- */
 
-export const matrixCreateCommandSchema = z
+const matrixCreateCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -277,7 +337,7 @@ export const matrixCreateCommandSchema = z
   })
   .strict();
 
-export const matrixCompareCommandSchema = z
+const matrixCompareCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -286,7 +346,7 @@ export const matrixCompareCommandSchema = z
   })
   .strict();
 
-export const matrixSwapCommandSchema = z
+const matrixSwapCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -295,7 +355,7 @@ export const matrixSwapCommandSchema = z
   })
   .strict();
 
-export const matrixSetCommandSchema = z
+const matrixSetCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -305,7 +365,7 @@ export const matrixSetCommandSchema = z
   })
   .strict();
 
-export const matrixMarkCommandSchema = z
+const matrixMarkCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -315,11 +375,37 @@ export const matrixMarkCommandSchema = z
   })
   .strict();
 
+const matrixVisitCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('matrix.visit'),
+    position: matrixPositionSchema,
+  })
+  .strict();
+
+const matrixRegionCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('matrix.region'),
+    start: matrixPositionSchema,
+    end: matrixPositionSchema,
+  })
+  .strict();
+
+const matrixLinesCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('matrix.lines'),
+    rows: boundedArray(indexSchema),
+    columns: boundedArray(indexSchema),
+  })
+  .strict();
+
 /* -------------------------------------------------------------------------- */
 /* Tree                                                                        */
 /* -------------------------------------------------------------------------- */
 
-export const treeCreateCommandSchema = z
+const treeCreateCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -329,7 +415,7 @@ export const treeCreateCommandSchema = z
   })
   .strict();
 
-export const treeSetRootCommandSchema = z
+const treeSetRootCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -338,7 +424,7 @@ export const treeSetRootCommandSchema = z
   })
   .strict();
 
-export const treeAddNodeCommandSchema = z
+const treeAddNodeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -347,7 +433,7 @@ export const treeAddNodeCommandSchema = z
   })
   .strict();
 
-export const treeRemoveNodeCommandSchema = z
+const treeRemoveNodeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -356,7 +442,7 @@ export const treeRemoveNodeCommandSchema = z
   })
   .strict();
 
-export const treeSetChildrenCommandSchema = z
+const treeSetChildrenCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -366,7 +452,7 @@ export const treeSetChildrenCommandSchema = z
   })
   .strict();
 
-export const treeSetValueCommandSchema = z
+const treeSetValueCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -376,7 +462,7 @@ export const treeSetValueCommandSchema = z
   })
   .strict();
 
-export const treeCompareCommandSchema = z
+const treeCompareCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -385,7 +471,7 @@ export const treeCompareCommandSchema = z
   })
   .strict();
 
-export const treeCheckBoundsCommandSchema = z
+const treeCheckBoundsCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -397,7 +483,7 @@ export const treeCheckBoundsCommandSchema = z
   })
   .strict();
 
-export const treeSetDepthCommandSchema = z
+const treeSetDepthCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -407,7 +493,7 @@ export const treeSetDepthCommandSchema = z
   })
   .strict();
 
-export const treeSwapValuesCommandSchema = z
+const treeSwapValuesCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -416,7 +502,7 @@ export const treeSwapValuesCommandSchema = z
   })
   .strict();
 
-export const treeVisitCommandSchema = z
+const treeVisitCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -425,7 +511,7 @@ export const treeVisitCommandSchema = z
   })
   .strict();
 
-export const treeMarkCommandSchema = z
+const treeMarkCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -435,11 +521,20 @@ export const treeMarkCommandSchema = z
   })
   .strict();
 
+const treeFrontierCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('tree.frontier'),
+    nodeIds: boundedArray(nodeIdSchema),
+    level: z.number().int().nonnegative().max(TRACE_LIMITS.collectionItems),
+  })
+  .strict();
+
 /* -------------------------------------------------------------------------- */
 /* Graph                                                                       */
 /* -------------------------------------------------------------------------- */
 
-export const graphCreateCommandSchema = z
+const graphCreateCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -451,7 +546,7 @@ export const graphCreateCommandSchema = z
   })
   .strict();
 
-export const graphAddNodeCommandSchema = z
+const graphAddNodeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -461,7 +556,7 @@ export const graphAddNodeCommandSchema = z
   })
   .strict();
 
-export const graphRemoveNodeCommandSchema = z
+const graphRemoveNodeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -470,7 +565,7 @@ export const graphRemoveNodeCommandSchema = z
   })
   .strict();
 
-export const graphAddEdgeCommandSchema = z
+const graphAddEdgeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -479,7 +574,7 @@ export const graphAddEdgeCommandSchema = z
   })
   .strict();
 
-export const graphRemoveEdgeCommandSchema = z
+const graphRemoveEdgeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -488,7 +583,7 @@ export const graphRemoveEdgeCommandSchema = z
   })
   .strict();
 
-export const graphSetNodeValueCommandSchema = z
+const graphSetNodeValueCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -498,7 +593,7 @@ export const graphSetNodeValueCommandSchema = z
   })
   .strict();
 
-export const graphSetEdgeWeightCommandSchema = z
+const graphSetEdgeWeightCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -508,7 +603,7 @@ export const graphSetEdgeWeightCommandSchema = z
   })
   .strict();
 
-export const graphVisitNodeCommandSchema = z
+const graphVisitNodeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -517,7 +612,7 @@ export const graphVisitNodeCommandSchema = z
   })
   .strict();
 
-export const graphVisitEdgeCommandSchema = z
+const graphVisitEdgeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -526,7 +621,7 @@ export const graphVisitEdgeCommandSchema = z
   })
   .strict();
 
-export const graphMarkNodesCommandSchema = z
+const graphMarkNodesCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -536,7 +631,7 @@ export const graphMarkNodesCommandSchema = z
   })
   .strict();
 
-export const graphMarkEdgesCommandSchema = z
+const graphMarkEdgesCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -546,7 +641,7 @@ export const graphMarkEdgesCommandSchema = z
   })
   .strict();
 
-export const graphDistanceCommandSchema = z
+const graphDistanceCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -556,11 +651,29 @@ export const graphDistanceCommandSchema = z
   })
   .strict();
 
+const graphNodeMetricCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('graph.nodeMetric'),
+    nodeId: nodeIdSchema,
+    name: nonEmptyStringSchema,
+    value: z.number().finite(),
+  })
+  .strict();
+
+const graphFrontierCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('graph.frontier'),
+    nodeIds: boundedArray(nodeIdSchema),
+  })
+  .strict();
+
 /* -------------------------------------------------------------------------- */
 /* Stack                                                                       */
 /* -------------------------------------------------------------------------- */
 
-export const stackCreateCommandSchema = z
+const stackCreateCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -569,7 +682,7 @@ export const stackCreateCommandSchema = z
   })
   .strict();
 
-export const stackPushCommandSchema = z
+const stackPushCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -578,7 +691,7 @@ export const stackPushCommandSchema = z
   })
   .strict();
 
-export const stackPopCommandSchema = z
+const stackPopCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -586,7 +699,7 @@ export const stackPopCommandSchema = z
   })
   .strict();
 
-export const stackPeekCommandSchema = z
+const stackPeekCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -594,7 +707,7 @@ export const stackPeekCommandSchema = z
   })
   .strict();
 
-export const stackCompareCommandSchema = z
+const stackCompareCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -604,7 +717,7 @@ export const stackCompareCommandSchema = z
   })
   .strict();
 
-export const stackMarkCommandSchema = z
+const stackMarkCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -618,7 +731,7 @@ export const stackMarkCommandSchema = z
 /* Queue                                                                       */
 /* -------------------------------------------------------------------------- */
 
-export const queueCreateCommandSchema = z
+const queueCreateCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -627,7 +740,7 @@ export const queueCreateCommandSchema = z
   })
   .strict();
 
-export const queueEnqueueCommandSchema = z
+const queueEnqueueCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -636,7 +749,7 @@ export const queueEnqueueCommandSchema = z
   })
   .strict();
 
-export const queueDequeueCommandSchema = z
+const queueDequeueCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -644,7 +757,7 @@ export const queueDequeueCommandSchema = z
   })
   .strict();
 
-export const queueDequeueBackCommandSchema = z
+const queueDequeueBackCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -652,7 +765,7 @@ export const queueDequeueBackCommandSchema = z
   })
   .strict();
 
-export const queuePeekCommandSchema = z
+const queuePeekCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -660,7 +773,7 @@ export const queuePeekCommandSchema = z
   })
   .strict();
 
-export const queueMarkCommandSchema = z
+const queueMarkCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -674,7 +787,7 @@ export const queueMarkCommandSchema = z
 /* Linked List                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export const linkedListCreateCommandSchema = z
+const linkedListCreateCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -686,7 +799,7 @@ export const linkedListCreateCommandSchema = z
   })
   .strict();
 
-export const linkedListAddNodeCommandSchema = z
+const linkedListAddNodeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -695,7 +808,7 @@ export const linkedListAddNodeCommandSchema = z
   })
   .strict();
 
-export const linkedListRemoveNodeCommandSchema = z
+const linkedListRemoveNodeCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -704,7 +817,7 @@ export const linkedListRemoveNodeCommandSchema = z
   })
   .strict();
 
-export const linkedListSetHeadCommandSchema = z
+const linkedListSetHeadCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -713,7 +826,7 @@ export const linkedListSetHeadCommandSchema = z
   })
   .strict();
 
-export const linkedListSetTailCommandSchema = z
+const linkedListSetTailCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -722,7 +835,7 @@ export const linkedListSetTailCommandSchema = z
   })
   .strict();
 
-export const linkedListSetNextCommandSchema = z
+const linkedListSetNextCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -732,7 +845,7 @@ export const linkedListSetNextCommandSchema = z
   })
   .strict();
 
-export const linkedListSetPreviousCommandSchema = z
+const linkedListSetPreviousCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -742,7 +855,7 @@ export const linkedListSetPreviousCommandSchema = z
   })
   .strict();
 
-export const linkedListSetValueCommandSchema = z
+const linkedListSetValueCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -752,7 +865,7 @@ export const linkedListSetValueCommandSchema = z
   })
   .strict();
 
-export const linkedListVisitCommandSchema = z
+const linkedListVisitCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -761,7 +874,7 @@ export const linkedListVisitCommandSchema = z
   })
   .strict();
 
-export const linkedListMarkCommandSchema = z
+const linkedListMarkCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -771,11 +884,29 @@ export const linkedListMarkCommandSchema = z
   })
   .strict();
 
+const linkedListPointerCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('linked-list.pointer'),
+    name: pointerNameSchema,
+    nodeId: nodeIdSchema.nullable(),
+  })
+  .strict();
+
+const linkedListCompareCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('linked-list.compare'),
+    nodeIds: z.tuple([nodeIdSchema, nodeIdSchema]),
+    operator: z.enum(['eq', 'neq', 'lt', 'lte', 'gt', 'gte']),
+  })
+  .strict();
+
 /* -------------------------------------------------------------------------- */
 /* Hash Table                                                                  */
 /* -------------------------------------------------------------------------- */
 
-export const hashTableCreateCommandSchema = z
+const hashTableCreateCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -786,7 +917,7 @@ export const hashTableCreateCommandSchema = z
   })
   .strict();
 
-export const hashTableSetCommandSchema = z
+const hashTableSetCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -795,7 +926,7 @@ export const hashTableSetCommandSchema = z
   })
   .strict();
 
-export const hashTableDeleteCommandSchema = z
+const hashTableDeleteCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -804,7 +935,7 @@ export const hashTableDeleteCommandSchema = z
   })
   .strict();
 
-export const hashTableMoveCommandSchema = z
+const hashTableMoveCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -814,7 +945,7 @@ export const hashTableMoveCommandSchema = z
   })
   .strict();
 
-export const hashTableVisitBucketCommandSchema = z
+const hashTableVisitBucketCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -823,7 +954,7 @@ export const hashTableVisitBucketCommandSchema = z
   })
   .strict();
 
-export const hashTableVisitEntryCommandSchema = z
+const hashTableVisitEntryCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -832,7 +963,7 @@ export const hashTableVisitEntryCommandSchema = z
   })
   .strict();
 
-export const hashTableMarkCommandSchema = z
+const hashTableMarkCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -842,11 +973,47 @@ export const hashTableMarkCommandSchema = z
   })
   .strict();
 
+const hashTableProbeCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('hash-table.probe'),
+    key: traceValueSchema,
+    bucketIndex: indexSchema,
+    matchedEntryId: nonEmptyStringSchema.nullable(),
+  })
+  .strict();
+
+const inputFocusCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('input.focus'),
+    input: inputContextSchema,
+  })
+  .strict();
+
+const inputSetCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('input.set'),
+    position: matrixPositionSchema,
+    value: traceValueSchema,
+  })
+  .strict();
+
+const metricsSetCommandSchema = z
+  .object({
+    ...traceCommandBaseShape,
+    type: z.literal('metrics.set'),
+    name: nonEmptyStringSchema,
+    value: traceValueSchema,
+  })
+  .strict();
+
 /* -------------------------------------------------------------------------- */
 /* General                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export const messageCommandSchema = z
+const messageCommandSchema = z
   .object({
     ...traceCommandBaseShape,
 
@@ -868,12 +1035,17 @@ export const traceCommandSchema = z.discriminatedUnion('type', [
   arraySwapCommandSchema,
   arraySetCommandSchema,
   arrayMarkCommandSchema,
+  arrayFocusCommandSchema,
+  arrayCompareValueCommandSchema,
 
   matrixCreateCommandSchema,
   matrixCompareCommandSchema,
   matrixSwapCommandSchema,
   matrixSetCommandSchema,
   matrixMarkCommandSchema,
+  matrixVisitCommandSchema,
+  matrixRegionCommandSchema,
+  matrixLinesCommandSchema,
 
   treeCreateCommandSchema,
   treeSetRootCommandSchema,
@@ -887,6 +1059,7 @@ export const traceCommandSchema = z.discriminatedUnion('type', [
   treeSwapValuesCommandSchema,
   treeVisitCommandSchema,
   treeMarkCommandSchema,
+  treeFrontierCommandSchema,
 
   graphCreateCommandSchema,
   graphAddNodeCommandSchema,
@@ -900,6 +1073,8 @@ export const traceCommandSchema = z.discriminatedUnion('type', [
   graphMarkNodesCommandSchema,
   graphMarkEdgesCommandSchema,
   graphDistanceCommandSchema,
+  graphNodeMetricCommandSchema,
+  graphFrontierCommandSchema,
 
   stackCreateCommandSchema,
   stackPushCommandSchema,
@@ -925,6 +1100,8 @@ export const traceCommandSchema = z.discriminatedUnion('type', [
   linkedListSetValueCommandSchema,
   linkedListVisitCommandSchema,
   linkedListMarkCommandSchema,
+  linkedListPointerCommandSchema,
+  linkedListCompareCommandSchema,
 
   hashTableCreateCommandSchema,
   hashTableSetCommandSchema,
@@ -933,13 +1110,16 @@ export const traceCommandSchema = z.discriminatedUnion('type', [
   hashTableVisitBucketCommandSchema,
   hashTableVisitEntryCommandSchema,
   hashTableMarkCommandSchema,
+  hashTableProbeCommandSchema,
+
+  inputFocusCommandSchema,
+  inputSetCommandSchema,
+  metricsSetCommandSchema,
 
   messageCommandSchema,
 ]);
 
-export const traceSchema = z
-  .array(traceCommandSchema)
-  .max(TRACE_LIMITS.commands);
+const traceSchema = z.array(traceCommandSchema).max(TRACE_LIMITS.commands);
 
 export const traceEnvelopeSchema = z
   .object({

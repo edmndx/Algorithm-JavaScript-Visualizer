@@ -1,5 +1,5 @@
 import { Terminal } from 'lucide-react';
-import type { ConsoleEntry } from '../../runner/runner';
+import type { ConsoleEntry } from '../../features/traceConsole';
 
 interface ConsolePanelProps {
   readonly entries: readonly ConsoleEntry[];

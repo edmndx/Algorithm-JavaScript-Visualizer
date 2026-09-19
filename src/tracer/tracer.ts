@@ -139,6 +139,21 @@ export function createTracer() {
       tree: 'tree.compare',
       stack: 'stack.compare',
     }),
+    focus: operation('focus', { array: 'array.focus' }),
+    compareValue: operation('compareValue', { array: 'array.compareValue' }),
+    visitCell: operation('visitCell', { matrix: 'matrix.visit' }),
+    region: operation('region', { matrix: 'matrix.region' }),
+    lines: operation('lines', { matrix: 'matrix.lines' }),
+    frontier: operation('frontier', {
+      tree: 'tree.frontier',
+      graph: 'graph.frontier',
+    }),
+    nodeMetric: operation('nodeMetric', { graph: 'graph.nodeMetric' }),
+    pointer: operation('pointer', { 'linked-list': 'linked-list.pointer' }),
+    compareNodes: operation('compareNodes', {
+      'linked-list': 'linked-list.compare',
+    }),
+    probe: operation('probe', { 'hash-table': 'hash-table.probe' }),
     checkBounds: operation('checkBounds', { tree: 'tree.checkBounds' }),
     setDepth: operation('setDepth', { tree: 'tree.setDepth' }),
     swap: operation('swap', {
@@ -230,6 +245,18 @@ export function createTracer() {
       'linked-list': 'message',
       'hash-table': 'message',
     }),
+
+    focusInput(payload: CommandPayload<'input.focus'>): void {
+      append(parseCommand('input.focus', payload));
+    },
+
+    setInput(payload: CommandPayload<'input.set'>): void {
+      append(parseCommand('input.set', payload));
+    },
+
+    setMetric(payload: CommandPayload<'metrics.set'>): void {
+      append(parseCommand('metrics.set', payload));
+    },
 
     /** Full trace semantics remain a downstream validation responsibility. */
     getCommands(): readonly TraceCommand[] {

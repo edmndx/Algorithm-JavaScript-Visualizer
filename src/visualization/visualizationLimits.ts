@@ -1,6 +1,6 @@
 import type { SceneState } from '../scene';
 
-export const VISUALIZATION_LIMITS = {
+const VISUALIZATION_LIMITS = {
   arrayItems: 256,
   matrixCells: 1_600,
   stackItems: 256,

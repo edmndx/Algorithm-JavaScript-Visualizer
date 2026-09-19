@@ -1,9 +1,10 @@
 import { select } from 'd3';
 
 import type { MatrixSceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
 import { createTransformTween } from './transformTween';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
 
 type MatrixCellDatum = {
   readonly id: string;
@@ -11,6 +12,7 @@ type MatrixCellDatum = {
   readonly column: number;
   readonly value: string;
   readonly markerNames: readonly string[];
+  readonly isMarked: boolean;
   readonly isCompared: boolean;
 };
 
@@ -59,12 +61,14 @@ export const renderMatrix: D3RenderFunction<MatrixSceneState> = (
           `Matrix item identity at (${row}, ${column}) is missing.`,
         );
       }
+      const cellMarkerNames = markerNames.get(key) ?? [];
       cells.push({
         id,
         row,
         column,
         value: String(value),
-        markerNames: markerNames.get(key) ?? [],
+        markerNames: cellMarkerNames.filter((name) => name !== 'probe'),
+        isMarked: cellMarkerNames.length > 0,
         isCompared: comparedKeys.has(key),
       });
     }
@@ -134,7 +138,7 @@ export const renderMatrix: D3RenderFunction<MatrixSceneState> = (
     )
     .attr('data-item-id', (cell) => cell.id)
     .classed('visualization-compared', (cell) => cell.isCompared)
-    .classed('visualization-marked', (cell) => cell.markerNames.length > 0);
+    .classed('visualization-marked', (cell) => cell.isMarked);
 
   groups
     .transition()

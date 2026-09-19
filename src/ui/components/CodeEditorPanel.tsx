@@ -2,7 +2,6 @@ import Editor from '@monaco-editor/react';
 import { Plus, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { editor } from 'monaco-editor';
-import { getVisualizationSourceHint } from '../../instrumentation/sourceContract';
 import type { TraceSourceLocation } from '../../protocol';
 import type { EditorTabsController } from './useEditorTabs';
 
@@ -187,12 +186,6 @@ export function CodeEditorPanel({
           </button>
         ) : null}
       </div>
-
-      {activeSource.structure === null ? null : (
-        <div className="code-editor-panel-contract-hint">
-          {getVisualizationSourceHint(activeSource.structure)}
-        </div>
-      )}
 
       <div className="code-editor-panel-editor">
         <Editor

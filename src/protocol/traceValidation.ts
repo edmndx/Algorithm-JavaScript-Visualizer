@@ -6,13 +6,13 @@ import {
 import { traceEnvelopeSchema } from './traceSchemas';
 import type { TraceCommand } from './traceTypes';
 
-export type TraceShapeIssue = {
+type TraceShapeIssue = {
   readonly code: string;
   readonly path: readonly PropertyKey[];
   readonly message: string;
 };
 
-export type TraceValidationResult =
+type TraceValidationResult =
   | {
       readonly ok: true;
       readonly version: typeof TRACE_PROTOCOL_VERSION;
@@ -51,11 +51,16 @@ export function validateTrace(input: unknown): TraceValidationResult {
     return {
       ok: false,
       stage: 'semantic',
-      issues: semanticResult.issues.map((issue) => ({
-        ...issue,
-        path: ['commands', issue.commandIndex],
-        source: commands[issue.commandIndex]?.source,
-      })),
+      issues: semanticResult.issues.map((issue) => {
+        const source = commands[issue.commandIndex]?.source;
+        return {
+          commandIndex: issue.commandIndex,
+          code: issue.code,
+          message: issue.message,
+          path: ['commands', issue.commandIndex],
+          ...(source === undefined ? {} : { source }),
+        };
+      }),
     };
   }
 

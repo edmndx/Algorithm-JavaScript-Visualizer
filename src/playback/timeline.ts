@@ -11,20 +11,20 @@ import {
 } from '../protocol/semanticValidation';
 import type { TraceCommand, TraceSourceLocation } from '../protocol/traceTypes';
 
-export const DEFAULT_CHECKPOINT_INTERVAL = 100;
+const DEFAULT_CHECKPOINT_INTERVAL = 100;
 export const TRACE_INITIALIZATION_COMMAND_COUNT = 2;
 
-export type TimelineCheckpoint = {
+type TimelineCheckpoint = {
   readonly stepIndex: number;
   readonly scene: SceneState;
 };
 
-export type TimelineFrame = {
+type TimelineFrame = {
   readonly stepIndex: number;
   readonly scene: SceneState;
 };
 
-export type TimelineBuildIssue =
+type TimelineBuildIssue =
   | TraceSemanticIssue
   | {
       readonly commandIndex: number;
@@ -33,21 +33,14 @@ export type TimelineBuildIssue =
       readonly source?: TraceSourceLocation;
     };
 
-export class TimelineBuildError extends Error {
+type TimelineBuildFailure = {
+  readonly message: string;
   readonly issues: readonly TimelineBuildIssue[];
-
-  constructor(issues: readonly TimelineBuildIssue[]) {
-    super(issues[0]?.message ?? 'Timeline construction failed.');
-
-    this.name = 'TimelineBuildError';
-    this.issues = issues;
-  }
-}
+};
 
 export type TraceTimeline = {
   readonly commands: readonly TraceCommand[];
   readonly checkpoints: readonly TimelineCheckpoint[];
-  readonly checkpointInterval: number;
   readonly operationCount: number;
   readonly structure: Extract<
     TraceCommand,
@@ -62,60 +55,59 @@ export type TimelineBuildResult =
     }
   | {
       readonly ok: false;
-      readonly error: TimelineBuildError;
+      readonly error: TimelineBuildFailure;
     };
 
 export function buildTimeline(
   commands: readonly TraceCommand[],
-  checkpointInterval = DEFAULT_CHECKPOINT_INTERVAL,
 ): TimelineBuildResult {
-  if (!Number.isInteger(checkpointInterval) || checkpointInterval <= 0) {
-    throw new RangeError('Checkpoint interval must be a positive integer.');
-  }
-
-  const preparedCommands = Object.freeze(structuredClone(commands));
-  const validation = validateTraceSemantics(preparedCommands);
+  const validation = validateTraceSemantics(commands);
 
   if (!validation.ok) {
     return {
       ok: false,
-      error: new TimelineBuildError(validation.issues),
+      error: {
+        message:
+          validation.issues[0]?.message ?? 'Timeline construction failed.',
+        issues: validation.issues,
+      },
     };
   }
 
-  const initializationCommand = preparedCommands[0];
+  const initializationCommand = commands[0];
   if (initializationCommand?.type !== 'scene.init') {
     throw new Error('A validated timeline is missing scene.init.');
   }
 
   let scene: SceneState = createInitialScene();
   const checkpoints: TimelineCheckpoint[] = [{ stepIndex: -1, scene }];
-  const finalStepIndex = preparedCommands.length - 1;
+  const finalStepIndex = commands.length - 1;
 
-  for (const [commandIndex, command] of preparedCommands.entries()) {
+  for (const [commandIndex, command] of commands.entries()) {
     try {
       scene = reduceTraceCommand(scene, command);
     } catch (error: unknown) {
+      const issue: TimelineBuildIssue = {
+        commandIndex,
+        code:
+          error instanceof SceneReducerError
+            ? error.code
+            : 'UNEXPECTED_REDUCER_ERROR',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unknown scene reducer error.',
+        ...(command.source === undefined ? {} : { source: command.source }),
+      };
+
       return {
         ok: false,
-        error: new TimelineBuildError([
-          {
-            commandIndex,
-            code:
-              error instanceof SceneReducerError
-                ? error.code
-                : 'UNEXPECTED_REDUCER_ERROR',
-            message:
-              error instanceof Error
-                ? error.message
-                : 'Unknown scene reducer error.',
-            source: command.source,
-          },
-        ]),
+        error: { message: issue.message, issues: [issue] },
       };
     }
 
-    const isIntervalBoundary = (commandIndex + 1) % checkpointInterval === 0;
+    const isIntervalBoundary =
+      (commandIndex + 1) % DEFAULT_CHECKPOINT_INTERVAL === 0;
 
     if (isIntervalBoundary || commandIndex === finalStepIndex) {
       checkpoints.push({ stepIndex: commandIndex, scene });
@@ -125,11 +117,9 @@ export function buildTimeline(
   return {
     ok: true,
     timeline: {
-      commands: preparedCommands,
+      commands,
       checkpoints,
-      checkpointInterval,
-      operationCount:
-        preparedCommands.length - TRACE_INITIALIZATION_COMMAND_COUNT,
+      operationCount: commands.length - TRACE_INITIALIZATION_COMMAND_COUNT,
       structure: initializationCommand.structure,
     },
   };
@@ -167,16 +157,7 @@ export function getPlaybackSourceLocation(
   );
 }
 
-export function getTraceInitializationCommands(
-  commands: readonly TraceCommand[],
-): readonly TraceCommand[] {
-  return commands.slice(0, TRACE_INITIALIZATION_COMMAND_COUNT);
-}
-
-export function getFrame(
-  timeline: TraceTimeline,
-  stepIndex: number,
-): TimelineFrame {
+function getFrame(timeline: TraceTimeline, stepIndex: number): TimelineFrame {
   assertStepIndex(timeline, stepIndex);
 
   const checkpoint = findCheckpoint(timeline.checkpoints, stepIndex);
@@ -190,25 +171,6 @@ export function getFrame(
   }
 
   return { stepIndex, scene };
-}
-
-export function getNextFrame(
-  timeline: TraceTimeline,
-  currentFrame: TimelineFrame,
-): TimelineFrame {
-  const nextStepIndex = currentFrame.stepIndex + 1;
-  assertStepIndex(timeline, nextStepIndex);
-
-  const command = timeline.commands[nextStepIndex];
-
-  if (command === undefined) {
-    throw new Error(`Missing timeline command at step ${nextStepIndex}.`);
-  }
-
-  return {
-    stepIndex: nextStepIndex,
-    scene: reduceTraceCommand(currentFrame.scene, command),
-  };
 }
 
 function assertStepIndex(timeline: TraceTimeline, stepIndex: number): void {

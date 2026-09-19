@@ -35,7 +35,6 @@ export function useEditorTabs({
   } | null>(null);
   const nextTabNumber = useRef(1);
   const nextRevision = useRef(1);
-  const activeSourceRevision = useRef(0);
 
   const primaryName =
     primaryNameOverride?.source === fileName
@@ -59,7 +58,6 @@ export function useEditorTabs({
     };
 
     nextRevision.current += 1;
-    activeSourceRevision.current = newTab.revision;
     setTabs((currentTabs) => [...currentTabs, newTab]);
     setActiveTabId(newTab.id);
   }
@@ -70,8 +68,6 @@ export function useEditorTabs({
 
     if (activeTabId === tabId) {
       const nextActiveTab = tabs[tabIndex + 1] ?? tabs[tabIndex - 1];
-      activeSourceRevision.current =
-        nextActiveTab?.revision ?? primarySource.revision;
       setActiveTabId(nextActiveTab?.id ?? PRIMARY_TAB_ID);
     }
 
@@ -99,8 +95,6 @@ export function useEditorTabs({
 
     const revision = nextRevision.current;
     nextRevision.current += 1;
-    activeSourceRevision.current = revision;
-
     if (activeTabId === PRIMARY_TAB_ID) {
       setPrimarySource((source) => ({ ...source, code: value, revision }));
       return;
@@ -116,9 +110,9 @@ export function useEditorTabs({
   function replacePrimarySource(
     code: string,
     structure: InstrumentableStructure,
-  ) {
+  ): RunnableSource {
     if (code === primarySource.code && structure === primarySource.structure) {
-      return;
+      return primarySource;
     }
 
     const revision = nextRevision.current;
@@ -130,9 +124,7 @@ export function useEditorTabs({
     };
 
     setPrimarySource(source);
-    if (activeTabId === PRIMARY_TAB_ID) {
-      activeSourceRevision.current = revision;
-    }
+    return source;
   }
 
   function selectTab(tabId: string) {
@@ -142,12 +134,7 @@ export function useEditorTabs({
         : tabs.find((tab) => tab.id === tabId);
     if (source === undefined) return;
 
-    activeSourceRevision.current = source.revision;
     setActiveTabId(tabId);
-  }
-
-  function isCurrentSource(source: RunnableSource) {
-    return source.revision === activeSourceRevision.current;
   }
 
   return {
@@ -156,7 +143,6 @@ export function useEditorTabs({
     addTab,
     canAddTab: tabs.length < MAX_NEW_TABS,
     closeTab,
-    isCurrentSource,
     primaryName,
     primaryTabId: PRIMARY_TAB_ID,
     renameTab,

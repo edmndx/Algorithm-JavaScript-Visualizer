@@ -1,20 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import '../assets/MainPage.css';
 import '../visualization/visualization.css';
-import {
-  algorithmCatalog,
-  type AlgorithmCatalogEntry,
-} from '../features/loadData';
+import { algorithmCatalog, type AlgorithmCatalogEntry } from '../data/catalog';
 import { createTraceOperationEntries } from '../features/traceConsole';
-import {
-  createTraceOwnership,
-  downloadTraceFile,
-  parseTraceFile,
-} from '../features/traceFile';
-import { useAlgorithmExecution } from '../features/useAlgorithmExecution';
+import { downloadTraceFile } from '../features/trace/traceDownload';
+import { useTraceSession } from '../features/useTraceSession';
 import { TRACE_INITIALIZATION_COMMAND_COUNT, usePlayback } from '../playback';
-import type { ConsoleEntry } from '../runner/runner';
 import { AppHeader } from './components/AppHeader';
 import CatalogSidebar from './components/CatalogSidebar';
 import { CodeEditorPanel } from './components/CodeEditorPanel';
@@ -29,124 +21,76 @@ export function MainPage() {
     useState<AlgorithmCatalogEntry | null>(DEFAULT_ALGORITHM);
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
-  const [isImportedTraceActive, setIsImportedTraceActive] = useState(false);
-  const [traceFileError, setTraceFileError] = useState<ConsoleEntry | null>(
-    null,
-  );
-  const [traceOwnership] = useState(createTraceOwnership);
-  const traceImportSequence = useRef(0);
   const playback = usePlayback(DEFAULT_ALGORITHM?.structure ?? 'array');
   const editorTabs = useEditorTabs({
     fileName: `${selectedAlgorithm?.id ?? 'starter-code'}.js`,
     initialCode: DEFAULT_ALGORITHM?.code ?? '',
     initialStructure: DEFAULT_ALGORITHM?.structure ?? null,
   });
-  const execution = useAlgorithmExecution(
-    (source) =>
-      traceOwnership.isExecutionOwner() && editorTabs.isCurrentSource(source),
-    traceOwnership.isExecutionOwner,
-    playback.load,
-    playback.play,
-  );
-  const initializeAlgorithm = execution.initialize;
-  const hasGeneratedTrace =
-    execution.successfulSourceRevision === editorTabs.activeSource.revision;
-  const hasCurrentTrace = isImportedTraceActive || hasGeneratedTrace;
-  const hasPreloadedTrace =
-    playback.commands.length > 0 &&
-    selectedAlgorithm !== null &&
-    editorTabs.activeSource.code === selectedAlgorithm.code &&
-    editorTabs.activeSource.structure === selectedAlgorithm.structure;
+  const session = useTraceSession({
+    activeSource: editorTabs.activeSource,
+    loadPlayback: playback.load,
+    playPlayback: playback.play,
+  });
+  const initializeAlgorithm = session.initialize;
+  const hasAcceptedTrace =
+    session.trace.kind === 'catalog' ||
+    session.trace.kind === 'generated' ||
+    session.trace.kind === 'imported';
+  const canExportTrace =
+    session.trace.kind === 'generated' || session.trace.kind === 'imported';
+  const consoleEntries =
+    session.consoleEntries.length > 0
+      ? session.consoleEntries
+      : hasAcceptedTrace
+        ? createTraceOperationEntries(
+            playback.commands.slice(
+              TRACE_INITIALIZATION_COMMAND_COUNT,
+              TRACE_INITIALIZATION_COMMAND_COUNT + playback.currentStep,
+            ),
+          )
+        : [];
+  const importedStructure =
+    session.trace.kind === 'imported' ? session.trace.structure : null;
   const activeSourceLocation =
-    hasGeneratedTrace || hasPreloadedTrace
+    session.trace.kind === 'catalog' || session.trace.kind === 'generated'
       ? playback.activeSourceLocation
       : null;
-  const consoleEntries =
-    traceFileError !== null
-      ? [traceFileError]
-      : hasCurrentTrace || hasPreloadedTrace
-        ? createTraceOperationEntries(
-            playback.commands.slice(TRACE_INITIALIZATION_COMMAND_COUNT),
-          )
-        : execution.consoleEntries;
 
   useEffect(() => {
     if (DEFAULT_ALGORITHM !== null) {
-      void initializeAlgorithm(DEFAULT_ALGORITHM);
+      void initializeAlgorithm({
+        code: DEFAULT_ALGORITHM.code,
+        revision: 0,
+        structure: DEFAULT_ALGORITHM.structure,
+      });
     }
   }, [initializeAlgorithm]);
 
   function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
-    traceImportSequence.current += 1;
-    traceOwnership.claimExecution();
     playback.initialize(algorithm.structure);
     setSelectedAlgorithm(algorithm);
-    setIsImportedTraceActive(false);
-    setTraceFileError(null);
-    editorTabs.replacePrimarySource(algorithm.code, algorithm.structure);
-    void initializeAlgorithm(algorithm);
+    const source = editorTabs.replacePrimarySource(
+      algorithm.code,
+      algorithm.structure,
+    );
+    void initializeAlgorithm(source);
   }
 
   function runAlgorithm() {
     if (selectedAlgorithm === null) return;
 
-    traceImportSequence.current += 1;
-    traceOwnership.claimExecution();
-    setIsImportedTraceActive(false);
-    setTraceFileError(null);
-    void execution.run(editorTabs.activeSource);
-  }
-
-  async function importTrace(file: File) {
-    const importSequence = ++traceImportSequence.current;
-    traceOwnership.claimImport();
-    let contents: string;
-
-    try {
-      contents = await file.text();
-    } catch {
-      if (importSequence !== traceImportSequence.current) return;
-
-      setTraceFileError({
-        sequence: 0,
-        level: 'error',
-        text: 'Trace file could not be read.',
-      });
-      return;
-    }
-
-    if (importSequence !== traceImportSequence.current) return;
-
-    const result = parseTraceFile(contents);
-
-    if (!result.ok) {
-      setTraceFileError({
-        sequence: 0,
-        level: 'error',
-        text: result.error.message,
-      });
-      return;
-    }
-
-    const timelineResult = playback.load(result.commands);
-
-    if (!timelineResult.ok) {
-      setTraceFileError({
-        sequence: 0,
-        level: 'error',
-        text: `Trace file validation failed: ${timelineResult.error.message}`,
-      });
-      return;
-    }
-
-    setIsImportedTraceActive(true);
-    setTraceFileError(null);
+    void session.run(editorTabs.activeSource);
   }
 
   function exportTrace() {
-    if (!hasCurrentTrace || selectedAlgorithm === null) return;
+    if (!canExportTrace) return;
 
-    downloadTraceFile(selectedAlgorithm.id, playback.commands);
+    const traceName =
+      importedStructure === null
+        ? (selectedAlgorithm?.id ?? 'trace')
+        : `imported-${importedStructure}`;
+    downloadTraceFile(traceName, playback.commands);
   }
 
   const pageClassName = [
@@ -160,13 +104,24 @@ export function MainPage() {
   return (
     <div className={pageClassName}>
       <AppHeader
-        algorithm={selectedAlgorithm}
-        canExportTrace={hasCurrentTrace}
-        isRunning={execution.isRunning}
+        title={
+          importedStructure === null
+            ? (selectedAlgorithm?.name ?? 'Select an algorithm')
+            : 'Imported trace'
+        }
+        category={
+          importedStructure === null
+            ? (selectedAlgorithm?.category ?? 'Algorithms')
+            : `${formatStructure(importedStructure)} structure`
+        }
+        canRun={selectedAlgorithm !== null}
+        canExportTrace={canExportTrace}
+        isRunning={session.isRunning}
         onExportTrace={exportTrace}
-        onImportTrace={(file) => void importTrace(file)}
+        onImportTrace={(file) => void session.importTrace(file)}
         onRun={runAlgorithm}
-        traceSucceeded={hasCurrentTrace}
+        onStop={session.stop}
+        traceSucceeded={canExportTrace}
       />
 
       <div className="main-page-content">
@@ -241,4 +196,11 @@ export function MainPage() {
       </div>
     </div>
   );
+}
+
+function formatStructure(structure: string): string {
+  return structure
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }

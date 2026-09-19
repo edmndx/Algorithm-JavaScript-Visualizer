@@ -1,9 +1,12 @@
 import { select } from 'd3';
 
 import type { QueueSceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
+import { indexMarkerNames } from './indexMarkerNames';
 import { createTransformTween } from './transformTween';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
+import { renderContext } from './renderContext';
 
 type QueueItemDatum = {
   readonly id: string;
@@ -18,11 +21,9 @@ const ITEM_HEIGHT = 48;
 const ITEM_GAP = 6;
 const PADDING = 28;
 const PITCH = ITEM_WIDTH + ITEM_GAP;
-// Presentation history only: scene data continues to come from the reducer.
-const previousQueues = new WeakMap<
+const previousQueueGeometry = new WeakMap<
   SVGSVGElement,
   {
-    scene: QueueSceneState;
     left: number;
     right: number;
   }
@@ -35,46 +36,41 @@ export const renderQueue: D3RenderFunction<QueueSceneState> = (
 ) => {
   const selection = select(svg);
   const hadRoot = !selection.select('g.visualization-queue').empty();
-  const previous = hadRoot ? previousQueues.get(svg) : undefined;
+  const previousGeometry = hadRoot ? previousQueueGeometry.get(svg) : undefined;
+  const previousScene = options?.previousScene ?? null;
   const sameIds = (ids: readonly string[]) =>
     ids.length === scene.itemIds.length &&
     ids.every((id, index) => id === scene.itemIds[index]);
   const mayAnimate =
-    previous !== undefined &&
+    previousGeometry !== undefined &&
+    previousScene !== null &&
     options?.animate !== false &&
-    previous.scene.isPlaceholder !== true;
+    previousScene.isPlaceholder !== true;
   const enqueue =
     mayAnimate &&
-    scene.nextItemId === previous.scene.nextItemId + 1 &&
+    scene.nextItemId === previousScene.nextItemId + 1 &&
     sameIds([
-      ...previous.scene.itemIds,
-      `queue-item-${previous.scene.nextItemId}`,
+      ...previousScene.itemIds,
+      `queue-item-${previousScene.nextItemId}`,
     ]);
   const removal =
     mayAnimate &&
-    scene.nextItemId === previous.scene.nextItemId &&
+    scene.nextItemId === previousScene.nextItemId &&
     scene.lastRemoval !== null &&
-    scene.lastRemoval.itemId !== previous.scene.lastRemoval?.itemId &&
+    scene.lastRemoval.itemId !== previousScene.lastRemoval?.itemId &&
     scene.lastRemoval.itemId ===
       (scene.lastRemoval.end === 'front'
-        ? previous.scene.itemIds[0]
-        : previous.scene.itemIds.at(-1)) &&
+        ? previousScene.itemIds[0]
+        : previousScene.itemIds.at(-1)) &&
     sameIds(
       scene.lastRemoval.end === 'front'
-        ? previous.scene.itemIds.slice(1)
-        : previous.scene.itemIds.slice(0, -1),
+        ? previousScene.itemIds.slice(1)
+        : previousScene.itemIds.slice(0, -1),
     );
   const adjacent =
-    mayAnimate && (enqueue || removal || sameIds(previous.scene.itemIds));
+    mayAnimate && (enqueue || removal || sameIds(previousScene.itemIds));
   selection.selectAll('*').interrupt();
-  const markerNames = new Map<number, string[]>();
-  for (const [name, indices] of Object.entries(scene.markers)) {
-    for (const index of indices) {
-      const names = markerNames.get(index) ?? [];
-      names.push(name);
-      markerNames.set(index, names);
-    }
-  }
+  const markerNames = indexMarkerNames(scene.markers);
 
   const items: readonly QueueItemDatum[] = scene.values.map((value, index) => {
     const id = scene.itemIds[index];
@@ -96,11 +92,11 @@ export const renderQueue: D3RenderFunction<QueueSceneState> = (
   // Motion padding contains a one-cell entrance/exit; it is not a label gutter.
   const width = Math.max(480, contentWidth + 2 * (PADDING + PITCH));
   const height = Math.max(200, PADDING * 2 + ITEM_HEIGHT);
-  const left = adjacent ? previous.left : (contentWidth - width) / 2;
+  const left = adjacent ? previousGeometry.left : (contentWidth - width) / 2;
   const right = adjacent
-    ? Math.max(previous.right, contentWidth + PADDING + PITCH)
+    ? Math.max(previousGeometry.right, contentWidth + PADDING + PITCH)
     : left + width;
-  previousQueues.set(svg, { scene, left, right });
+  previousQueueGeometry.set(svg, { left, right });
   updateVisualizationViewBox(
     svg,
     `${left} 0 ${right - left} ${height}`,
@@ -208,4 +204,5 @@ export const renderQueue: D3RenderFunction<QueueSceneState> = (
     .attr('x', ITEM_WIDTH / 2)
     .attr('y', ITEM_HEIGHT - 5)
     .text((item) => item.markerNames.join(', '));
+  renderContext(svg, scene);
 };

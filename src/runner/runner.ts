@@ -1,15 +1,7 @@
 import type { TraceCommand } from '../protocol/traceTypes';
 import { createTracer, TracerError } from '../tracer/tracer';
 
-export const RUNNER_LIMITS = {
-  sourceBytes: 256_000,
-} as const;
-
-export type ConsoleEntry = {
-  readonly sequence: number;
-  readonly level: 'log' | 'warn' | 'error';
-  readonly text: string;
-};
+const MAX_SOURCE_BYTES = 256_000;
 
 type JavaScriptRunnerError = {
   readonly code: 'SYNTAX_ERROR' | 'RUNTIME_ERROR';
@@ -30,7 +22,7 @@ export type RunnerError =
     }
   | {
       readonly code: 'SOURCE_LIMIT';
-      readonly limit: typeof RUNNER_LIMITS.sourceBytes;
+      readonly limit: typeof MAX_SOURCE_BYTES;
       readonly message: string;
     }
   | {
@@ -49,7 +41,7 @@ export type RunnerResult =
       readonly error: RunnerError;
     };
 
-export type RunnerSourceValidation =
+type RunnerSourceValidation =
   | {
       readonly ok: true;
       readonly source: string;
@@ -61,23 +53,18 @@ export type RunnerSourceValidation =
 
 type TraceApi = Omit<ReturnType<typeof createTracer>, 'getCommands'>;
 
-type RunnerConsole = Readonly<Record<ConsoleEntry['level'], () => void>>;
+type RunnerConsole = Readonly<Record<'log' | 'warn' | 'error', () => void>>;
 
-export type RunnerOptions = {
+type RunnerOptions = {
   readonly tracing: boolean;
 };
 
+const SILENT_CONSOLE: RunnerConsole = Object.freeze({
+  log: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+});
 const textEncoder = new TextEncoder();
-
-export async function runCode(
-  source: unknown,
-  options: RunnerOptions,
-): Promise<RunnerResult> {
-  const validation = validateRunnerSource(source);
-  if (!validation.ok) return validation.result;
-
-  return runValidatedCode(validation.source, options);
-}
 
 export function validateRunnerSource(source: unknown): RunnerSourceValidation {
   if (typeof source !== 'string') {
@@ -90,13 +77,13 @@ export function validateRunnerSource(source: unknown): RunnerSourceValidation {
     };
   }
 
-  if (textEncoder.encode(source).byteLength > RUNNER_LIMITS.sourceBytes) {
+  if (textEncoder.encode(source).byteLength > MAX_SOURCE_BYTES) {
     return {
       ok: false,
       result: failure([], {
         code: 'SOURCE_LIMIT',
-        limit: RUNNER_LIMITS.sourceBytes,
-        message: `Runner source code exceeds the ${RUNNER_LIMITS.sourceBytes}-byte limit.`,
+        limit: MAX_SOURCE_BYTES,
+        message: `Runner source code exceeds the ${MAX_SOURCE_BYTES}-byte limit.`,
       }),
     };
   }
@@ -199,19 +186,10 @@ function createExecutionFunction(
       );
 
   return (trace) => {
-    const console = createSilentConsole();
     const result: unknown = tracing
-      ? dynamicFunction(trace, console)
-      : dynamicFunction(console);
+      ? dynamicFunction(trace, SILENT_CONSOLE)
+      : dynamicFunction(SILENT_CONSOLE);
     return Promise.resolve(result);
-  };
-}
-
-function createSilentConsole(): RunnerConsole {
-  return {
-    log: () => undefined,
-    warn: () => undefined,
-    error: () => undefined,
   };
 }
 

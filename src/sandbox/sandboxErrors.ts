@@ -2,7 +2,7 @@ export type SandboxErrorKind =
   | 'worker-creation'
   | 'communication'
   | 'worker-crashed'
-  | 'worker-unavailable'
+  | 'timeout'
   | 'disposed';
 
 export class SandboxError extends Error {

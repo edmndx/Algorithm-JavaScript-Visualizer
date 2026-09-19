@@ -1,9 +1,12 @@
 import { select } from 'd3';
 
 import type { HashTableSceneState } from '../scene';
-import { VISUALIZATION_TRANSITION_MS, type D3RenderFunction } from './D3Scene';
+import type { D3RenderFunction } from './D3Scene';
+import { indexMarkerNames } from './indexMarkerNames';
 import { createTransformTween } from './transformTween';
 import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
+import { renderContext } from './renderContext';
 
 type HashTableEntry = HashTableSceneState['entries'][number];
 
@@ -28,7 +31,7 @@ const ENTRY_GAP = 30;
 const CONNECTOR_GAP = 34;
 const PADDING = 32;
 
-export function groupHashTableEntries(
+function groupHashTableEntries(
   scene: HashTableSceneState,
 ): readonly (readonly HashTableEntry[])[] {
   const entriesByBucket: HashTableEntry[][] = [];
@@ -55,14 +58,7 @@ export const renderHashTable: D3RenderFunction<HashTableSceneState> = (
 ) => {
   const entriesByBucket = groupHashTableEntries(scene);
 
-  const markerNames = new Map<string, string[]>();
-  for (const [name, entryIds] of Object.entries(scene.markers)) {
-    for (const entryId of entryIds) {
-      const names = markerNames.get(entryId) ?? [];
-      names.push(name);
-      markerNames.set(entryId, names);
-    }
-  }
+  const markerNames = indexMarkerNames(scene.markers);
 
   const visitedBuckets = new Set(scene.visitedBucketIndices);
   const visitedEntries = new Set(scene.visitedEntryIds);
@@ -271,4 +267,5 @@ export const renderHashTable: D3RenderFunction<HashTableSceneState> = (
     .attr('x', ENTRY_WIDTH / 2)
     .attr('y', CELL_HEIGHT - 7)
     .text((positioned) => positioned.markerNames.join(', '));
+  renderContext(svg, scene);
 };
