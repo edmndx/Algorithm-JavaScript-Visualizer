@@ -1,0 +1,188 @@
+import { useRef, useState } from 'react';
+
+import type { RunnableSource } from '../../features/codeEditor';
+import type { TraceStructure } from '../../protocol/traceTypes';
+
+type EditorTab = RunnableSource & {
+  readonly id: string;
+  readonly name: string;
+};
+
+interface EditorTabsOptions {
+  readonly fileName: string;
+  readonly initialCode: string;
+  readonly initialStructure: TraceStructure | null;
+}
+
+const PRIMARY_TAB_ID = 'algorithm-source';
+const MAX_NEW_TABS = 3;
+
+export function useEditorTabs({
+  fileName,
+  initialCode,
+  initialStructure,
+}: EditorTabsOptions) {
+  const [primarySource, setPrimarySource] = useState<RunnableSource>({
+    code: initialCode,
+    revision: 0,
+    structure: initialStructure,
+  });
+  const [tabs, setTabs] = useState<readonly EditorTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState(PRIMARY_TAB_ID);
+  const [primaryNameOverride, setPrimaryNameOverride] = useState<{
+    readonly source: string;
+    readonly value: string;
+  } | null>(null);
+  const nextTabNumber = useRef(1);
+  const nextRevision = useRef(1);
+
+  const primaryName =
+    primaryNameOverride?.source === fileName
+      ? primaryNameOverride.value
+      : fileName;
+  const activeTab = tabs.find((tab) => tab.id === activeTabId);
+  const activeSource = activeTab ?? primarySource;
+
+  function addTab() {
+    if (tabs.length >= MAX_NEW_TABS) return;
+
+    const tabNumber = nextTabNumber.current;
+    nextTabNumber.current += 1;
+
+    const newTab = {
+      id: `new-tab-${tabNumber}`,
+      name: `untitled-${tabNumber}.js`,
+      code: '',
+      revision: nextRevision.current,
+      structure: activeSource.structure,
+    };
+
+    nextRevision.current += 1;
+    setTabs((currentTabs) => [...currentTabs, newTab]);
+    setActiveTabId(newTab.id);
+  }
+
+  function closeTab(tabId: string) {
+    const tabIndex = tabs.findIndex((tab) => tab.id === tabId);
+    if (tabIndex === -1) return;
+
+    if (activeTabId === tabId) {
+      const nextActiveTab = tabs[tabIndex + 1] ?? tabs[tabIndex - 1];
+      setActiveTabId(nextActiveTab?.id ?? PRIMARY_TAB_ID);
+    }
+
+    setTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
+  }
+
+  function renameTab(tabId: string, name: string) {
+    const newName = name.trim();
+
+    if (newName) {
+      if (tabId === PRIMARY_TAB_ID) {
+        setPrimaryNameOverride({ source: fileName, value: newName });
+      } else {
+        setTabs((currentTabs) =>
+          currentTabs.map((tab) =>
+            tab.id === tabId ? { ...tab, name: newName } : tab,
+          ),
+        );
+      }
+    }
+  }
+
+  function updateActiveCode(value: string) {
+    if (value === activeSource.code) return;
+
+    const revision = nextRevision.current;
+    nextRevision.current += 1;
+    if (activeTabId === PRIMARY_TAB_ID) {
+      setPrimarySource((source) => ({ ...source, code: value, revision }));
+      return;
+    }
+
+    setTabs((currentTabs) =>
+      currentTabs.map((tab) =>
+        tab.id === activeTabId ? { ...tab, code: value, revision } : tab,
+      ),
+    );
+  }
+
+  function replacePrimarySource(
+    code: string,
+    structure: TraceStructure,
+  ): RunnableSource {
+    if (code === primarySource.code && structure === primarySource.structure) {
+      return primarySource;
+    }
+
+    const revision = nextRevision.current;
+    nextRevision.current += 1;
+    const source = {
+      code,
+      revision,
+      structure,
+    };
+
+    setPrimarySource(source);
+    return source;
+  }
+
+  function selectTab(tabId: string) {
+    const source =
+      tabId === PRIMARY_TAB_ID
+        ? primarySource
+        : tabs.find((tab) => tab.id === tabId);
+    if (source === undefined) return;
+
+    setActiveTabId(tabId);
+  }
+
+  function bindImportedSource(
+    code: string,
+    structure: TraceStructure,
+  ): RunnableSource | null {
+    const matches = (source: RunnableSource) =>
+      source.code === code && source.structure === structure;
+    if (matches(activeSource)) return activeSource;
+    if (matches(primarySource)) {
+      setActiveTabId(PRIMARY_TAB_ID);
+      return primarySource;
+    }
+    const matchingTab = tabs.find(matches);
+    if (matchingTab !== undefined) {
+      setActiveTabId(matchingTab.id);
+      return matchingTab;
+    }
+    if (tabs.length >= MAX_NEW_TABS) return null;
+
+    const tabNumber = nextTabNumber.current++;
+    const source = {
+      id: `new-tab-${tabNumber}`,
+      name: `imported-${tabNumber}.js`,
+      code,
+      revision: nextRevision.current++,
+      structure,
+    };
+    setTabs((currentTabs) => [...currentTabs, source]);
+    setActiveTabId(source.id);
+    return source;
+  }
+
+  return {
+    activeSource,
+    activeTabId,
+    addTab,
+    bindImportedSource,
+    canAddTab: tabs.length < MAX_NEW_TABS,
+    closeTab,
+    primaryName,
+    primaryTabId: PRIMARY_TAB_ID,
+    renameTab,
+    replacePrimarySource,
+    selectTab,
+    tabs,
+    updateActiveCode,
+  };
+}
+
+export type EditorTabsController = ReturnType<typeof useEditorTabs>;

@@ -1,9 +1,11 @@
 import Editor from '@monaco-editor/react';
 import { Plus, X } from 'lucide-react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import type { EditorTabsController } from './useEditorTabs';
 
-const PRIMARY_TAB_ID = 'algorithm-source';
-const MAX_NEW_TABS = 3;
+interface CodeEditorPanelProps {
+  readonly editorTabs: EditorTabsController;
+}
 
 const EDITOR_THEME_NAME = 'algorithm-visualizer-dark';
 
@@ -53,116 +55,32 @@ const EDITOR_OPTIONS = {
   overviewRulerBorder: false,
 } satisfies import('monaco-editor').editor.IStandaloneEditorConstructionOptions;
 
-type CodeEditorPanelProps = {
-  code: string;
-  fileName: string;
-  onChange: (code: string) => void;
-  onActiveSourceChange: (code: string) => void;
-  onValidationChange: (hasErrors: boolean) => void;
-};
-
-type EditorTab = {
-  id: string;
-  name: string;
-  code: string;
-};
-
-function configureEditorTheme(monaco: typeof import('monaco-editor')) {
-  monaco.editor.defineTheme(EDITOR_THEME_NAME, EDITOR_THEME);
-}
-
-export default function CodeEditorPanel({
-  code,
-  fileName,
-  onChange,
-  onActiveSourceChange,
-  onValidationChange,
-}: CodeEditorPanelProps) {
-  const [tabs, setTabs] = useState<EditorTab[]>([]);
-  const [activeTabId, setActiveTabId] = useState(PRIMARY_TAB_ID);
+export function CodeEditorPanel({ editorTabs }: CodeEditorPanelProps) {
+  const {
+    activeSource,
+    activeTabId,
+    addTab,
+    canAddTab,
+    closeTab,
+    primaryName,
+    primaryTabId,
+    renameTab,
+    selectTab,
+    tabs,
+    updateActiveCode,
+  } = editorTabs;
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
-  const [primaryNameOverride, setPrimaryNameOverride] = useState<{
-    source: string;
-    value: string;
-  } | null>(null);
-  const nextTabNumber = useRef(1);
-
-  const primaryName =
-    primaryNameOverride?.source === fileName
-      ? primaryNameOverride.value
-      : fileName;
-  const activeTab = tabs.find((tab) => tab.id === activeTabId);
-  const activeTabCode = activeTab?.code ?? code;
-
-  useLayoutEffect(() => {
-    onActiveSourceChange(activeTabCode);
-  }, [activeTabCode, onActiveSourceChange]);
-
-  function addTab() {
-    if (tabs.length >= MAX_NEW_TABS) return;
-
-    const tabNumber = nextTabNumber.current;
-    nextTabNumber.current += 1;
-
-    const newTab = {
-      id: `new-tab-${tabNumber}`,
-      name: `untitled-${tabNumber}.js`,
-      code: '',
-    };
-
-    setTabs((currentTabs) => [...currentTabs, newTab]);
-    setActiveTabId(newTab.id);
-  }
-
-  function closeTab(tabId: string) {
-    const tabIndex = tabs.findIndex((tab) => tab.id === tabId);
-    if (tabIndex === -1) return;
-
-    if (activeTabId === tabId) {
-      const nextActiveTab = tabs[tabIndex + 1] ?? tabs[tabIndex - 1];
-      setActiveTabId(nextActiveTab?.id ?? PRIMARY_TAB_ID);
-    }
-
-    setTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
-    if (renamingTabId === tabId) setRenamingTabId(null);
-  }
 
   function beginRename(tabId: string, currentName: string) {
-    setActiveTabId(tabId);
+    selectTab(tabId);
     setRenameDraft(currentName);
     setRenamingTabId(tabId);
   }
 
   function commitRename(tabId: string) {
-    const newName = renameDraft.trim();
-
-    if (newName) {
-      if (tabId === PRIMARY_TAB_ID) {
-        setPrimaryNameOverride({ source: fileName, value: newName });
-      } else {
-        setTabs((currentTabs) =>
-          currentTabs.map((tab) =>
-            tab.id === tabId ? { ...tab, name: newName } : tab,
-          ),
-        );
-      }
-    }
-
+    renameTab(tabId, renameDraft);
     setRenamingTabId(null);
-  }
-
-  function updateActiveCode(value: string) {
-    if (activeTabId === PRIMARY_TAB_ID) {
-      onChange(value);
-      return;
-    }
-
-    setTabs((currentTabs) =>
-      currentTabs.map((tab) =>
-        tab.id === activeTabId ? { ...tab, code: value } : tab,
-      ),
-    );
   }
 
   function renderTab(tabId: string, name: string, canClose = false) {
@@ -194,7 +112,7 @@ export default function CodeEditorPanel({
             role="tab"
             aria-selected={isActive}
             title="Double-click or press F2 to rename"
-            onClick={() => setActiveTabId(tabId)}
+            onClick={() => selectTab(tabId)}
             onDoubleClick={() => beginRename(tabId, name)}
             onKeyDown={(event) => {
               if (event.key === 'F2') beginRename(tabId, name);
@@ -210,7 +128,10 @@ export default function CodeEditorPanel({
             type="button"
             aria-label={`Close ${name}`}
             title={`Close ${name}`}
-            onClick={() => closeTab(tabId)}
+            onClick={() => {
+              closeTab(tabId);
+              if (renamingTabId === tabId) setRenamingTabId(null);
+            }}
           >
             <X aria-hidden="true" />
           </button>
@@ -222,10 +143,10 @@ export default function CodeEditorPanel({
   return (
     <aside className="code-editor-panel">
       <div className="code-editor-panel-tabs" role="tablist">
-        {renderTab(PRIMARY_TAB_ID, primaryName)}
+        {renderTab(primaryTabId, primaryName)}
         {tabs.map((tab) => renderTab(tab.id, tab.name, true))}
 
-        {tabs.length < MAX_NEW_TABS ? (
+        {canAddTab ? (
           <button
             className="code-editor-panel-add-tab"
             type="button"
@@ -243,19 +164,20 @@ export default function CodeEditorPanel({
           path={`${activeTabId}.js`}
           height="100%"
           language="javascript"
-          value={activeTabCode}
+          value={activeSource.code}
           theme={EDITOR_THEME_NAME}
           beforeMount={configureEditorTheme}
           loading={
             <span className="code-editor-panel-loading">Loading editor…</span>
           }
           onChange={(value) => updateActiveCode(value ?? '')}
-          onValidate={(markers) =>
-            onValidationChange(markers.some((marker) => marker.severity >= 8))
-          }
           options={EDITOR_OPTIONS}
         />
       </div>
     </aside>
   );
+}
+
+function configureEditorTheme(monaco: typeof import('monaco-editor')) {
+  monaco.editor.defineTheme(EDITOR_THEME_NAME, EDITOR_THEME);
 }
