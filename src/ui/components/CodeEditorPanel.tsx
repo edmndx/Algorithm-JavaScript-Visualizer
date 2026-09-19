@@ -1,6 +1,7 @@
 import Editor from '@monaco-editor/react';
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
+import { getVisualizationSourceHint } from '../../instrumentation/sourceContract';
 import type { EditorTabsController } from './useEditorTabs';
 
 interface CodeEditorPanelProps {
@@ -158,6 +159,12 @@ export function CodeEditorPanel({ editorTabs }: CodeEditorPanelProps) {
           </button>
         ) : null}
       </div>
+
+      {activeSource.structure === null ? null : (
+        <div className="code-editor-panel-contract-hint">
+          {getVisualizationSourceHint(activeSource.structure)}
+        </div>
+      )}
 
       <div className="code-editor-panel-editor">
         <Editor
