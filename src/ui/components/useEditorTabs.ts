@@ -185,4 +185,7 @@ export function useEditorTabs({
   };
 }
 
-export type EditorTabsController = ReturnType<typeof useEditorTabs>;
+export type EditorTabsController = Omit<
+  ReturnType<typeof useEditorTabs>,
+  'bindImportedSource' | 'replacePrimarySource'
+>;

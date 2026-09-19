@@ -19,7 +19,6 @@
   vector-effect: non-scaling-stroke;
 }
 
-.visualization-array-gradient stop,
 .visualization-bar {
   transition:
     fill 300ms,
@@ -27,24 +26,29 @@
     filter 300ms;
 }
 
-#visualization-array-blue-gradient stop:first-child {
+.visualization-array-gradient stop {
+  transition: stop-color 300ms linear;
+}
+
+.visualization-array-gradient stop:first-child {
   stop-color: color-mix(in oklab, var(--accent-blue) 25%, transparent);
 }
 
-#visualization-array-blue-gradient stop:last-child {
+.visualization-array-gradient stop:last-child {
   stop-color: color-mix(in oklab, var(--accent-blue) 5%, transparent);
 }
 
-#visualization-array-red-gradient stop:first-child {
+.visualization-array-gradient.visualization-compared stop:first-child,
+.visualization-array-gradient.visualization-marked stop:first-child {
   stop-color: color-mix(in oklab, var(--accent-red) 40%, transparent);
 }
 
-#visualization-array-red-gradient stop:last-child {
+.visualization-array-gradient.visualization-compared stop:last-child,
+.visualization-array-gradient.visualization-marked stop:last-child {
   stop-color: color-mix(in oklab, var(--accent-red) 10%, transparent);
 }
 
 .visualization-bar {
-  fill: url('#visualization-array-blue-gradient');
   stroke: color-mix(in oklab, var(--accent-blue) 40%, transparent);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
@@ -52,7 +56,6 @@
 
 .visualization-array-item.visualization-compared .visualization-bar,
 .visualization-array-item.visualization-marked .visualization-bar {
-  fill: url('#visualization-array-red-gradient');
   stroke: color-mix(in oklab, var(--accent-red) 70%, transparent);
   filter: drop-shadow(
     0 0 10px color-mix(in oklab, var(--accent-red) 70%, transparent)
