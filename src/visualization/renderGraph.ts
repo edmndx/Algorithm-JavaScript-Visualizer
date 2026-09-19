@@ -321,15 +321,6 @@ export const renderGraph: D3RenderFunction<GraphSceneState> = (svg, scene) => {
     .data([null])
     .join('g')
     .attr('class', 'visualization-graph');
-  root
-    .selectAll<SVGTextElement, null>('text.visualization-empty-structure')
-    .data(nodes.length === 0 ? [null] : [])
-    .join('text')
-    .attr('class', 'visualization-empty-structure')
-    .attr('x', layout.width / 2)
-    .attr('y', layout.height / 2)
-    .text('EMPTY GRAPH');
-
   const edgePaths = root
     .selectAll<SVGPathElement, RenderedGraphEdge>(
       'path.visualization-graph-edge',

@@ -812,6 +812,7 @@ export function reduceTraceCommand(
         values: [...command.values],
         itemIds: createItemIds('queue-item', command.values.length),
         nextItemId: command.values.length,
+        lastRemoval: null,
         peekedIndex: null,
         markers: {},
       };
@@ -839,12 +840,50 @@ export function reduceTraceCommand(
         );
       }
 
+      const itemId = scene.itemIds[0];
+      if (itemId === undefined) {
+        throw new SceneReducerError(
+          'ENTITY_NOT_FOUND',
+          'Queue front identity is missing.',
+        );
+      }
+
       return {
         ...scene,
         values: scene.values.slice(1),
         itemIds: scene.itemIds.slice(1),
+        lastRemoval: { itemId, end: 'front' },
         peekedIndex: null,
         markers: shiftIndicesAfterRemoval(scene.markers, 0),
+      };
+    }
+
+    case 'queue.dequeueBack': {
+      requireStructure(scene, 'queue', command.type);
+
+      if (scene.values.length === 0) {
+        throw new SceneReducerError(
+          'QUEUE_UNDERFLOW',
+          'Cannot dequeue from an empty queue.',
+        );
+      }
+
+      const removedIndex = scene.values.length - 1;
+      const itemId = scene.itemIds[removedIndex];
+      if (itemId === undefined) {
+        throw new SceneReducerError(
+          'ENTITY_NOT_FOUND',
+          'Queue rear identity is missing.',
+        );
+      }
+
+      return {
+        ...scene,
+        values: scene.values.slice(0, -1),
+        itemIds: scene.itemIds.slice(0, -1),
+        lastRemoval: { itemId, end: 'rear' },
+        peekedIndex: null,
+        markers: shiftIndicesAfterRemoval(scene.markers, removedIndex),
       };
     }
 

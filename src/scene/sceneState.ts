@@ -153,6 +153,12 @@ export type QueueSceneState = SceneStateBase & {
   readonly itemIds: readonly string[];
   readonly nextItemId: number;
 
+  // Identity ties the most recent removal to its exit, including singleton queues.
+  readonly lastRemoval: {
+    readonly itemId: string;
+    readonly end: 'front' | 'rear';
+  } | null;
+
   readonly peekedIndex: number | null;
 
   readonly markers: Readonly<Record<string, readonly number[]>>;
@@ -296,6 +302,7 @@ export function createInitializedScene(
         values: [],
         itemIds: [],
         nextItemId: 0,
+        lastRemoval: null,
         peekedIndex: null,
         markers: {},
       };
