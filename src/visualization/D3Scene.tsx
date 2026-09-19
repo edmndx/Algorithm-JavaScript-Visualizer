@@ -12,20 +12,29 @@ type VisualScene = {
 export type D3RenderFunction<Scene extends VisualScene> = (
   svg: SVGSVGElement,
   scene: Scene,
+  options?: { readonly animate: boolean },
 ) => void;
+
+export type PlaybackPosition = {
+  readonly sequence: object;
+  readonly step: number;
+};
 
 type D3SceneProps<Scene extends VisualScene> = {
   readonly scene: Scene;
   readonly render: D3RenderFunction<Scene>;
   readonly label: string;
+  readonly playbackPosition?: PlaybackPosition;
 };
 
 export default function D3Scene<Scene extends VisualScene>({
   scene,
   render,
   label,
+  playbackPosition,
 }: D3SceneProps<Scene>) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const previousPosition = useRef<PlaybackPosition | undefined>(undefined);
 
   useLayoutEffect(() => {
     const svg = svgRef.current;
@@ -41,7 +50,15 @@ export default function D3Scene<Scene extends VisualScene>({
     ) {
       selection.selectAll('*').remove();
     }
-    render(svg, scene);
+    const previous = previousPosition.current;
+    render(svg, scene, {
+      animate:
+        playbackPosition !== undefined &&
+        previous !== undefined &&
+        playbackPosition.sequence === previous.sequence &&
+        playbackPosition.step === previous.step + 1,
+    });
+    previousPosition.current = playbackPosition;
     if (scene.isPlaceholder === true) {
       svg.setAttribute('data-visualization-placeholder', 'true');
     } else {
@@ -53,7 +70,7 @@ export default function D3Scene<Scene extends VisualScene>({
       selection.interrupt(VISUALIZATION_VIEW_BOX_TRANSITION);
       selection.selectAll('*').interrupt();
     };
-  }, [render, scene]);
+  }, [render, scene, playbackPosition]);
 
   return (
     <svg
