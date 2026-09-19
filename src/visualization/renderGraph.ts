@@ -215,12 +215,12 @@ export const renderGraph: D3RenderFunction<GraphSceneState> = (
   nodeGroups
     .select<SVGTextElement>('text.visualization-number')
     .attr('dy', '0.35em')
-    .text((node) =>
+    .text((node, index) =>
       typeof node.node.value === 'number'
         ? String(node.node.value)
         : /^-?\d+(?:\.\d+)?$/.test(node.id)
           ? node.id
-          : '',
+          : index,
     );
   nodeGroups
     .select<SVGTextElement>('text.visualization-distance')
