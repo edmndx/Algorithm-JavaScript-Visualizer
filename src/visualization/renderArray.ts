@@ -1,0 +1,211 @@
+import { scaleLinear, select } from 'd3';
+
+import type { ArraySceneState } from '../scene';
+import type { D3RenderFunction } from './D3Scene';
+import { createTransformTween } from './transformTween';
+import { updateVisualizationViewBox } from './viewBoxTransition';
+import { VISUALIZATION_TRANSITION_MS } from './visualizationTransition';
+
+type ArrayItemDatum = {
+  readonly id: string;
+  readonly index: number;
+  readonly value: string;
+  readonly isMarked: boolean;
+  readonly isCompared: boolean;
+  readonly y: number;
+  readonly height: number;
+  readonly valueKind: 'numeric' | 'nonnumeric';
+  readonly isOutsideRange: boolean;
+};
+
+const BAR_WIDTH = 48;
+const BAR_GAP = 16;
+const CHART_HEIGHT = 280;
+const NONNUMERIC_HEIGHT = 92;
+const HORIZONTAL_PADDING = 40;
+const TOP_PADDING = 48;
+const BOTTOM_PADDING = 62;
+
+function arrayValueY(datum: ArrayItemDatum, baselineY: number): number {
+  return datum.y < baselineY ? datum.y - 10 : datum.y + datum.height + 18;
+}
+
+export const renderArray: D3RenderFunction<ArraySceneState> = (
+  svg,
+  scene,
+  context,
+) => {
+  const focusMarkers: Record<string, readonly number[]> = { ...scene.markers };
+  for (const [name, index] of Object.entries(scene.focus.pointers))
+    if (index >= 0 && index < scene.values.length) focusMarkers[name] = [index];
+  if (
+    scene.focus.index !== null &&
+    !Object.values(scene.focus.pointers).includes(scene.focus.index)
+  )
+    focusMarkers.cur = [scene.focus.index];
+  const markedIndices = new Set(Object.values(focusMarkers).flat());
+  const comparedIndices = new Set(scene.comparedIndices ?? []);
+  const numericValues = scene.values.filter(
+    (value): value is number => typeof value === 'number',
+  );
+  const minimum = Math.min(0, ...numericValues);
+  const maximum = Math.max(0, ...numericValues);
+  const numericDomain: readonly [number, number] =
+    minimum === maximum ? [-1, 1] : [minimum, maximum];
+  const yScale = scaleLinear()
+    .domain(numericDomain)
+    .range([TOP_PADDING + CHART_HEIGHT, TOP_PADDING]);
+  const baselineY = yScale(0);
+  const data: readonly ArrayItemDatum[] = scene.values.map((value, index) => {
+    const id = scene.itemIds[index];
+    if (id === undefined) {
+      throw new Error(`Array item identity at index ${index} is missing.`);
+    }
+    const numeric = typeof value === 'number';
+    const valueY = numeric ? yScale(value) : baselineY;
+    return {
+      id,
+      index,
+      value: numeric ? String(value) : '',
+      isMarked: markedIndices.has(index),
+      isCompared:
+        comparedIndices.has(index) || scene.valueComparison?.index === index,
+      isOutsideRange:
+        scene.focus.range !== null &&
+        (index < scene.focus.range[0] || index >= scene.focus.range[1]),
+      y: numeric
+        ? Math.min(valueY, baselineY)
+        : TOP_PADDING + (CHART_HEIGHT - NONNUMERIC_HEIGHT) / 2,
+      height: numeric ? Math.abs(valueY - baselineY) : NONNUMERIC_HEIGHT,
+      valueKind: numeric ? 'numeric' : 'nonnumeric',
+    };
+  });
+  const contentWidth =
+    data.length === 0
+      ? BAR_WIDTH * 4
+      : data.length * BAR_WIDTH + (data.length - 1) * BAR_GAP;
+  const width = contentWidth + HORIZONTAL_PADDING * 2;
+  const height = TOP_PADDING + CHART_HEIGHT + BOTTOM_PADDING;
+  const selection = select(svg);
+  const hadRoot = !selection.select('g.visualization-array').empty();
+  updateVisualizationViewBox(
+    svg,
+    `0 0 ${width} ${height}`,
+    hadRoot && context?.animate === true,
+  );
+  const definitions = selection
+    .selectAll<SVGDefsElement, null>('defs.visualization-array-definitions')
+    .data([null])
+    .join('defs')
+    .attr('class', 'visualization-array-definitions');
+  const gradients = definitions
+    .selectAll<SVGLinearGradientElement, 'blue' | 'red'>(
+      'linearGradient.visualization-array-gradient',
+    )
+    .data(['blue', 'red'], (color) => color)
+    .join('linearGradient')
+    .attr('class', 'visualization-array-gradient')
+    .attr('id', (color) => `visualization-array-${color}-gradient`)
+    .attr('x1', '0%')
+    .attr('y1', '100%')
+    .attr('x2', '0%')
+    .attr('y2', '0%');
+  gradients
+    .selectAll<SVGStopElement, string>('stop')
+    .data(['0%', '100%'])
+    .join('stop')
+    .attr('offset', (offset) => offset);
+  const root = selection
+    .selectAll<SVGGElement, null>('g.visualization-array')
+    .data([null])
+    .join('g')
+    .attr('class', 'visualization-array');
+
+  root
+    .selectAll<SVGLineElement, null>('line.visualization-array-baseline')
+    .data(data.length === 0 ? [] : [null])
+    .join('line')
+    .attr('class', 'visualization-array-baseline')
+    .attr('data-visible', 'true')
+    .attr('x1', HORIZONTAL_PADDING)
+    .attr('x2', width - HORIZONTAL_PADDING)
+    .attr('y1', baselineY)
+    .attr('y2', baselineY);
+
+  const items = root
+    .selectAll<SVGGElement, ArrayItemDatum>('g.visualization-array-item')
+    .data(data, (datum) => datum.id)
+    .join(
+      (enter) => {
+        const group = enter
+          .append('g')
+          .attr('class', 'visualization-array-item')
+          .attr(
+            'transform',
+            (datum) =>
+              `translate(${HORIZONTAL_PADDING + datum.index * (BAR_WIDTH + BAR_GAP)}, 0)`,
+          );
+        group.append('rect').attr('class', 'visualization-bar');
+        group.append('text').attr('class', 'visualization-number');
+        group.append('text').attr('class', 'visualization-index');
+        return group;
+      },
+      (update) => update,
+    )
+    .attr('data-item-id', (datum) => datum.id)
+    .classed('visualization-compared', (datum) => datum.isCompared)
+    .classed('visualization-marked', (datum) => datum.isMarked)
+    .attr('opacity', (datum) => (datum.isOutsideRange ? '0.35' : '1'));
+
+  if (context?.animate) {
+    items
+      .transition()
+      .duration(VISUALIZATION_TRANSITION_MS)
+      .attrTween(
+        'transform',
+        createTransformTween<ArrayItemDatum>(
+          (datum) =>
+            `translate(${HORIZONTAL_PADDING + datum.index * (BAR_WIDTH + BAR_GAP)}, 0)`,
+        ),
+      );
+  } else {
+    items.attr(
+      'transform',
+      (datum) =>
+        `translate(${HORIZONTAL_PADDING + datum.index * (BAR_WIDTH + BAR_GAP)}, 0)`,
+    );
+  }
+
+  const bars = items
+    .select<SVGRectElement>('rect.visualization-bar')
+    .attr('data-value-kind', (datum) => datum.valueKind)
+    .attr('x', 0)
+    .attr('width', BAR_WIDTH)
+    .attr('rx', 4);
+  if (hadRoot && context?.animate) {
+    bars
+      .transition()
+      .duration(VISUALIZATION_TRANSITION_MS)
+      .attr('y', (datum) => datum.y)
+      .attr('height', (datum) => datum.height);
+  } else {
+    bars.attr('y', (datum) => datum.y).attr('height', (datum) => datum.height);
+  }
+
+  const valueLabels = items
+    .select<SVGTextElement>('text.visualization-number')
+    .attr('x', BAR_WIDTH / 2)
+    .text((datum) => (typeof datum.value === 'number' ? datum.value : ''));
+  if (hadRoot && context?.animate)
+    valueLabels
+      .transition()
+      .duration(VISUALIZATION_TRANSITION_MS)
+      .attr('y', (datum) => arrayValueY(datum, baselineY));
+  else valueLabels.attr('y', (datum) => arrayValueY(datum, baselineY));
+
+  items
+    .select<SVGTextElement>('text.visualization-index')
+    .attr('x', BAR_WIDTH / 2)
+    .attr('y', TOP_PADDING + CHART_HEIGHT + 22)
+    .text((datum) => datum.index);
+};
