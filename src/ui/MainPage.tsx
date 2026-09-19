@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import '../assets/MainPage.css';
 import { loadStarterCode } from '../features/codeEditor';
 import {
@@ -17,33 +18,103 @@ export default function MainPage() {
   const [code, setCode] = useState(DEFAULT_ALGORITHM?.code ?? '');
   const [selectedAlgorithm, setSelectedAlgorithm] =
     useState<AlgorithmCatalogEntry | null>(DEFAULT_ALGORITHM);
+  const [isCatalogOpen, setIsCatalogOpen] = useState(true);
+  const [isEditorOpen, setIsEditorOpen] = useState(true);
+  const [hasEditorErrors, setHasEditorErrors] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
 
   function selectAlgorithm(algorithm: AlgorithmCatalogEntry) {
     setSelectedAlgorithm(algorithm);
     setCode(loadStarterCode(algorithm.id) ?? '');
+    setHasEditorErrors(false);
   }
 
+  function runAlgorithm() {
+    if (!selectedAlgorithm || isRunning) return;
+
+    setIsRunning(true);
+    window.setTimeout(() => setIsRunning(false), 900);
+  }
+
+  const fileStatus = !selectedAlgorithm
+    ? 'empty'
+    : hasEditorErrors
+      ? 'error'
+      : 'loaded';
+
+  const pageClassName = [
+    'main-page',
+    !isCatalogOpen && 'main-page--catalog-collapsed',
+    !isEditorOpen && 'main-page--editor-collapsed',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className="main-page">
-      <AppHeader algorithm={selectedAlgorithm} />
+    <div className={pageClassName}>
+      <AppHeader
+        algorithm={selectedAlgorithm}
+        fileStatus={fileStatus}
+        isRunning={isRunning}
+        onRun={runAlgorithm}
+      />
 
       <div className="main-page-content">
-        <CatalogSidebar
-          activeAlgorithmId={selectedAlgorithm?.id ?? null}
-          onSelectAlgorithm={selectAlgorithm}
-        />
+        {isCatalogOpen ? (
+          <CatalogSidebar
+            activeAlgorithmId={selectedAlgorithm?.id ?? null}
+            onSelectAlgorithm={selectAlgorithm}
+          />
+        ) : null}
+
+        <button
+          className="panel-collapse-control catalog-sidebar-collapse-control"
+          type="button"
+          aria-controls="catalog-sidebar"
+          aria-expanded={isCatalogOpen}
+          aria-label={isCatalogOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          title={isCatalogOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          onClick={() => setIsCatalogOpen((isOpen) => !isOpen)}
+        >
+          {isCatalogOpen ? (
+            <ChevronLeft aria-hidden="true" />
+          ) : (
+            <ChevronRight aria-hidden="true" />
+          )}
+        </button>
 
         <main className="main-page-workspace">
           <section className="main-page-workspace-content">
             <VisualizationPanel />
-            <ConsolePanel />
           </section>
 
-          <CodeEditorPanel
-            code={code}
-            fileName={`${selectedAlgorithm?.id ?? 'starter-code'}.js`}
-            onChange={setCode}
-          />
+          <button
+            className="panel-collapse-control editor-collapse-control"
+            type="button"
+            aria-controls="editor-workbench"
+            aria-expanded={isEditorOpen}
+            aria-label={isEditorOpen ? 'Collapse editor' : 'Expand editor'}
+            title={isEditorOpen ? 'Collapse editor' : 'Expand editor'}
+            onClick={() => setIsEditorOpen((isOpen) => !isOpen)}
+          >
+            {isEditorOpen ? (
+              <ChevronRight aria-hidden="true" />
+            ) : (
+              <ChevronLeft aria-hidden="true" />
+            )}
+          </button>
+
+          {isEditorOpen ? (
+            <div className="main-page-editor-workbench" id="editor-workbench">
+              <CodeEditorPanel
+                code={code}
+                fileName={`${selectedAlgorithm?.id ?? 'starter-code'}.js`}
+                onChange={setCode}
+                onValidationChange={setHasEditorErrors}
+              />
+              <ConsolePanel />
+            </div>
+          ) : null}
         </main>
       </div>
     </div>

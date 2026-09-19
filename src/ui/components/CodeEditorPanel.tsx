@@ -51,6 +51,7 @@ type CodeEditorPanelProps = {
   code: string;
   fileName: string;
   onChange: (code: string) => void;
+  onValidationChange: (hasErrors: boolean) => void;
 };
 
 type EditorTab = {
@@ -67,6 +68,7 @@ export default function CodeEditorPanel({
   code,
   fileName,
   onChange,
+  onValidationChange,
 }: CodeEditorPanelProps) {
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [activeTabId, setActiveTabId] = useState(PRIMARY_TAB_ID);
@@ -236,6 +238,9 @@ export default function CodeEditorPanel({
             <span className="code-editor-panel-loading">Loading editor…</span>
           }
           onChange={(value) => updateActiveCode(value ?? '')}
+          onValidate={(markers) =>
+            onValidationChange(markers.some((marker) => marker.severity >= 8))
+          }
           options={EDITOR_OPTIONS}
         />
       </div>
