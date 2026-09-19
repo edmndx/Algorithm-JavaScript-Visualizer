@@ -1,5 +1,6 @@
 import { releaseProxy, wrap, type Remote } from 'comlink';
 
+import type { RunnerResult } from '../runner/runner';
 import { SandboxError } from './sandboxErrors';
 import type { SandboxHealth, SandboxWorkerApi } from './sandboxTypes';
 
@@ -25,20 +26,11 @@ export class SandboxClient {
   }
 
   async ping(): Promise<SandboxHealth> {
-    const state = this.requireActive();
+    return this.callWorker((worker) => worker.ping());
+  }
 
-    try {
-      return await state.proxy.ping();
-    } catch (cause) {
-      const failure = new SandboxError(
-        'communication',
-        'Sandbox Worker communication failed.',
-        cause,
-      );
-
-      if (this.state === state) this.fail(state, failure);
-      throw failure;
-    }
+  async run(source: string): Promise<RunnerResult> {
+    return this.callWorker<RunnerResult>((worker) => worker.run(source));
   }
 
   restart(): void {
@@ -66,6 +58,25 @@ export class SandboxClient {
     const state = this.state;
     this.state = { lifecycle: 'disposed' };
     if (state.lifecycle === 'active') this.release(state);
+  }
+
+  private async callWorker<Result>(
+    call: (worker: Remote<SandboxWorkerApi>) => Promise<Result>,
+  ): Promise<Result> {
+    const state = this.requireActive();
+
+    try {
+      return await call(state.proxy);
+    } catch (cause) {
+      const failure = new SandboxError(
+        'communication',
+        'Sandbox Worker communication failed.',
+        cause,
+      );
+
+      if (this.state === state) this.fail(state, failure);
+      throw failure;
+    }
   }
 
   private createWorker(): ActiveState {
@@ -112,9 +123,6 @@ export class SandboxClient {
   }
 
   private release(state: ActiveState): void {
-    state.worker.removeEventListener('error', this.handleError);
-    state.worker.removeEventListener('messageerror', this.handleMessageError);
-
     try {
       state.proxy[releaseProxy]();
     } catch (cause) {
@@ -124,7 +132,7 @@ export class SandboxClient {
         cause,
       );
     } finally {
-      state.worker.terminate();
+      this.terminateWorker(state);
     }
   }
 
@@ -132,7 +140,13 @@ export class SandboxClient {
     if (this.state !== state) return;
 
     this.state = { lifecycle: 'terminated', failure };
-    this.release(state);
+    this.terminateWorker(state);
+  }
+
+  private terminateWorker(state: ActiveState): void {
+    state.worker.removeEventListener('error', this.handleError);
+    state.worker.removeEventListener('messageerror', this.handleMessageError);
+    state.worker.terminate();
   }
 
   private activeStateFor(target: EventTarget | null): ActiveState | undefined {
