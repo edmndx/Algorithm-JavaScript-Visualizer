@@ -140,8 +140,12 @@ export default function AppHeader({
             disabled={isRunning || fileStatus === 'empty'}
             onClick={() => onRun()}
           >
-            <Play aria-hidden="true" className="app-header-run-icon" />
-            <span>{isRunning ? 'Running' : 'Run'}</span>
+            {isRunning ? (
+              <Square className="app-header-run-icon" aria-hidden="true" />
+            ) : (
+              <Play className="app-header-run-icon" aria-hidden="true" />
+            )}
+            <span>{isRunning ? 'Stop' : 'Run'}</span>
           </button>
         </div>
       </div>
