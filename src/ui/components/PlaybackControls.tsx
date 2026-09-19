@@ -1,46 +1,174 @@
-import { Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
+import { Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
 
-export default function PlaybackControls() {
+type PlaybackControlsProps = {
+  currentStep: number;
+  totalSteps: number;
+  isPlaying: boolean;
+  canPlay: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onPlay: () => void;
+  onPause: () => void;
+  onNext: () => void;
+  onPrevious: () => void;
+  onReset: () => void;
+  speed: 0.5 | 1 | 2;
+  onCycleSpeed: () => void;
+  onSeek: (step: number) => void;
+};
+
+export default function PlaybackControls({
+  currentStep,
+  totalSteps,
+  isPlaying,
+  canPlay,
+  canGoBack,
+  canGoForward,
+  onPlay,
+  onPause,
+  onNext,
+  onPrevious,
+  onReset,
+  speed,
+  onCycleSpeed,
+  onSeek,
+}: PlaybackControlsProps) {
+  const progress =
+    totalSteps === 0 ? 0 : Math.round((currentStep / totalSteps) * 100);
+  const isComplete = currentStep === totalSteps && totalSteps > 0;
+  const playLabel = isComplete ? 'Replay trace' : 'Play trace';
+  const seekAt = (target: HTMLDivElement, clientX: number) => {
+    if (totalSteps === 0) return;
+    const bounds = target.getBoundingClientRect();
+    const proportion = Math.max(
+      0,
+      Math.min(1, (clientX - bounds.left) / bounds.width),
+    );
+    onSeek(Math.round(proportion * totalSteps));
+  };
+
   return (
     <div className="playback-controls-reveal">
       <div className="playback-controls-shell">
         <div className="playback-controls">
           <div
-            className="playback-controls-placeholders"
+            className="playback-control-buttons"
             role="group"
-            aria-label="Playback controls unavailable"
+            aria-label="Playback controls"
           >
-            <span className="playback-control-placeholder" title="Restart">
-              <RotateCcw className="playback-control-icon" aria-hidden="true" />
-            </span>
-            <span className="playback-control-placeholder" title="Step back">
-              <SkipBack className="playback-control-icon" aria-hidden="true" />
-            </span>
-            <span
-              className="playback-control-placeholder playback-control-placeholder--primary"
-              title="Play"
+            <button
+              className="playback-control-button"
+              type="button"
+              aria-label="Restart playback"
+              title="Restart"
+              disabled={!canGoBack}
+              onClick={onReset}
             >
-              <Play className="playback-control-icon" aria-hidden="true" />
-            </span>
-            <span className="playback-control-placeholder" title="Step forward">
+              <RotateCcw className="playback-control-icon" aria-hidden="true" />
+            </button>
+            <button
+              className="playback-control-button"
+              type="button"
+              aria-label="Step back"
+              title="Step back"
+              disabled={!canGoBack}
+              onClick={onPrevious}
+            >
+              <SkipBack className="playback-control-icon" aria-hidden="true" />
+            </button>
+            <button
+              className="playback-control-button playback-control-button--primary"
+              type="button"
+              aria-label={isPlaying ? 'Pause playback' : playLabel}
+              title={isPlaying ? 'Pause' : isComplete ? 'Replay' : 'Play'}
+              disabled={!canPlay}
+              onClick={isPlaying ? onPause : onPlay}
+            >
+              {isPlaying ? (
+                <Pause className="playback-control-icon" aria-hidden="true" />
+              ) : (
+                <Play className="playback-control-icon" aria-hidden="true" />
+              )}
+            </button>
+            <button
+              className="playback-control-button"
+              type="button"
+              aria-label="Step forward"
+              title="Step forward"
+              disabled={!canGoForward}
+              onClick={onNext}
+            >
               <SkipForward
                 className="playback-control-icon"
                 aria-hidden="true"
               />
-            </span>
+            </button>
           </div>
 
-          <div className="playback-timeline" aria-hidden="true">
+          <div
+            className="playback-timeline"
+            role="slider"
+            aria-label="Playback progress"
+            aria-valuemin={0}
+            aria-valuemax={totalSteps}
+            aria-valuenow={currentStep}
+            tabIndex={totalSteps > 0 ? 0 : -1}
+            onPointerDown={(event) => {
+              event.currentTarget.focus();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              seekAt(event.currentTarget, event.clientX);
+            }}
+            onPointerMove={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                seekAt(event.currentTarget, event.clientX);
+            }}
+            onPointerUp={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+            onKeyDown={(event) => {
+              let step: number;
+              switch (event.key) {
+                case 'ArrowLeft':
+                case 'ArrowDown':
+                  step = currentStep - 1;
+                  break;
+                case 'ArrowRight':
+                case 'ArrowUp':
+                  step = currentStep + 1;
+                  break;
+                case 'Home':
+                  step = 0;
+                  break;
+                case 'End':
+                  step = totalSteps;
+                  break;
+                default:
+                  return;
+              }
+              event.preventDefault();
+              onSeek(step);
+            }}
+          >
             <div className="playback-timeline-track">
-              <div className="playback-timeline-progress" />
+              <div
+                className="playback-timeline-progress"
+                style={{ width: `${progress}%` }}
+              />
             </div>
           </div>
 
           <div className="playback-status">
-            <span>
-              <span className="playback-status-current">0</span> / 0
-            </span>
-            <span className="playback-speed">1.0×</span>
+            <button
+              className="playback-status-speed"
+              type="button"
+              aria-label={`Playback speed: ${speed}x. Activate to change speed.`}
+              title={`Playback speed ${speed}x; click to change`}
+              onClick={onCycleSpeed}
+            >
+              <span className="playback-status-current">{currentStep}</span> /{' '}
+              {totalSteps}
+            </button>
           </div>
         </div>
       </div>

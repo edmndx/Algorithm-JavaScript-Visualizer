@@ -4,7 +4,6 @@
   --catalog-sidebar-width: 18rem;
   --code-editor-width: 32.5rem;
   --workspace-grid-size: 3rem;
-  --visualization-bar-gap: 1rem;
   --control-size: 2rem;
   --transition-fast: 150ms ease;
   --transition-medium: 200ms ease;
@@ -333,15 +332,35 @@
 
 .app-header-file-option {
   display: flex;
+  width: 100%;
   min-height: 2.25rem;
   align-items: center;
   gap: 0.625rem;
+  border: 0;
   border-radius: 0.375rem;
+  background: transparent;
   padding: 0 0.625rem;
-  color: var(--muted-foreground);
+  color: var(--foreground);
+  font: inherit;
   font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-header-file-option:hover:not(:disabled),
+.app-header-file-option:focus-visible:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.app-header-file-option:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--ring) 35%, transparent);
+  outline-offset: -2px;
+}
+
+.app-header-file-option:disabled {
+  color: var(--muted-foreground);
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: default;
 }
 
 .app-header-file-option svg {
@@ -362,6 +381,8 @@
 }
 
 .app-header-run {
+  --run-red: oklch(0.68 0.2 25);
+
   position: relative;
   display: flex;
   height: 2.25rem;
@@ -372,7 +393,7 @@
   border-radius: 0.375rem;
   background: color-mix(in oklab, var(--accent-red) 10%, transparent);
   padding: 0 0.75rem;
-  color: color-mix(in oklab, var(--accent-red) 72%, white);
+  color: var(--run-red);
   font-size: 0.875rem;
   font-weight: 600;
   font-family: inherit;
@@ -390,12 +411,23 @@
 .app-header-run:hover:not(:disabled),
 .app-header-run:focus-visible {
   background: color-mix(in oklab, var(--accent-red) 17%, transparent);
-  color: color-mix(in oklab, var(--accent-red) 55%, white);
+  color: color-mix(in oklab, var(--run-red) 88%, white);
 }
 
 .app-header-run:focus-visible {
   outline: 0;
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent-red) 28%, transparent);
+}
+
+.app-header-run--success,
+.app-header-run--success:hover:not(:disabled),
+.app-header-run--success:focus-visible {
+  --run-success: oklch(0.78 0.14 145);
+
+  border-color: color-mix(in oklab, var(--run-success) 62%, var(--border));
+  background: color-mix(in oklab, var(--run-success) 18%, transparent);
+  color: oklch(0.9 0.1 145);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--run-success) 22%, transparent);
 }
 
 .app-header-run:active:not(:disabled) {
@@ -668,7 +700,7 @@
   font-size: 0.625rem;
 }
 
-/* Visualization canvas — bar styles are retained for future renderer output. */
+/* Visualization canvas */
 .visualization-panel {
   position: relative;
   display: flex;
@@ -682,6 +714,32 @@
 .visualization-panel:focus-visible {
   outline: 2px solid color-mix(in oklab, var(--ring) 75%, transparent);
   outline-offset: -2px;
+}
+
+.visualization-panel--expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--background);
+  background-image: inherit;
+  background-size: inherit;
+}
+
+.visualization-panel--expanded .visualization-panel-toolbar,
+.visualization-panel--expanded .playback-controls-reveal {
+  opacity: 1;
+}
+
+button.visualization-toolbar-placeholder {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+button.visualization-toolbar-placeholder:disabled {
+  cursor: default;
+  opacity: 0.35;
 }
 
 .visualization-panel-toolbar {
@@ -706,14 +764,45 @@
   opacity: 1;
 }
 
-.visualization-toolbar-placeholder,
-.playback-control-placeholder {
+.visualization-toolbar-placeholder {
   display: grid;
   width: var(--control-size);
   height: var(--control-size);
   place-items: center;
   border-radius: 0.375rem;
   color: var(--muted-foreground);
+}
+
+.playback-control-button {
+  display: grid;
+  width: var(--control-size);
+  height: var(--control-size);
+  place-items: center;
+  border-radius: 0.375rem;
+  color: var(--muted-foreground);
+  border: 0;
+  outline: 0;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.playback-control-button:hover:not(:disabled),
+.playback-control-button:focus-visible {
+  background: var(--surface-2);
+  color: var(--foreground);
+}
+
+.playback-control-button:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 40%, transparent);
+}
+
+.playback-control-button:disabled {
+  cursor: default;
+  opacity: 0.35;
 }
 
 .visualization-toolbar-icon,
@@ -723,78 +812,26 @@
 }
 
 .visualization-panel-canvas {
+  position: relative;
   display: flex;
   min-height: 0;
   flex: 1;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   padding: 2.5rem 2rem 3.5rem;
 }
 
-.visualization-bar-stage {
-  display: flex;
-  width: 100%;
-  max-width: 56rem;
-  height: 100%;
-  align-items: flex-end;
-  justify-content: space-around;
-  gap: var(--visualization-bar-gap);
-  transform: scale(var(--visualization-zoom, 1));
-  transform-origin: center bottom;
-  transition: transform var(--transition-medium);
-}
-
-.visualization-bar-item {
-  display: flex;
-  min-width: 0;
-  height: 100%;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.visualization-bar-value {
+.visualization-empty-state,
+.visualization-capacity-message {
   color: var(--muted-foreground);
   font-size: 0.75rem;
-  font-weight: 500;
 }
 
-.visualization-bar {
-  width: 100%;
-  min-height: 0.25rem;
-  height: var(--visualization-bar-height, 0%);
-  border: 1px solid color-mix(in oklab, var(--accent-blue) 40%, transparent);
-  border-radius: 0.375rem 0.375rem 0 0;
-  background: linear-gradient(
-    to top,
-    color-mix(in oklab, var(--accent-blue) 25%, transparent),
-    color-mix(in oklab, var(--accent-blue) 5%, transparent)
-  );
-  transition:
-    height 300ms ease,
-    border-color 300ms ease,
-    background 300ms ease;
+.visualization-capacity-message {
+  color: color-mix(in oklab, var(--accent-red) 55%, white);
 }
 
-.visualization-bar--active {
-  border-color: color-mix(in oklab, var(--accent-red) 70%, transparent);
-  background: linear-gradient(
-    to top,
-    color-mix(in oklab, var(--accent-red) 40%, transparent),
-    color-mix(in oklab, var(--accent-red) 10%, transparent)
-  );
-  box-shadow: 0 0 24px -4px var(--accent-red);
-}
-
-.visualization-bar-index {
-  color: var(--muted-foreground);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-}
-
-/* Playback placeholder */
+/* Playback */
 .playback-controls-reveal {
   position: absolute;
   z-index: 10;
@@ -832,13 +869,13 @@
   gap: 1rem;
 }
 
-.playback-controls-placeholders {
+.playback-control-buttons {
   display: flex;
   align-items: center;
   gap: 0.25rem;
 }
 
-.playback-control-placeholder--primary {
+.playback-control-button--primary {
   width: 2.25rem;
   height: 2.25rem;
   background: color-mix(in oklab, var(--accent-red) 20%, transparent);
@@ -848,6 +885,12 @@
 .playback-timeline {
   position: relative;
   flex: 1;
+  cursor: pointer;
+}
+
+.playback-timeline:focus-visible {
+  outline: 2px solid var(--accent-red);
+  outline-offset: 3px;
 }
 
 .playback-timeline-track {
@@ -879,10 +922,18 @@
   color: var(--foreground);
 }
 
-.playback-speed {
-  border-radius: 0.25rem;
-  background: color-mix(in oklab, var(--surface) 60%, transparent);
-  padding: 0.125rem 0.375rem;
+.playback-status-speed {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.playback-status-speed:focus-visible {
+  outline: 2px solid var(--accent-red);
+  outline-offset: 3px;
 }
 
 /* Console */
@@ -929,6 +980,20 @@
   font-size: 0.75rem;
   scrollbar-color: var(--border-strong) transparent;
   scrollbar-width: thin;
+}
+
+.console-panel-entry {
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.console-panel-entry + .console-panel-entry {
+  margin-top: 0.5rem;
+}
+
+.console-panel-entry--error {
+  color: color-mix(in oklab, var(--accent-red) 65%, white);
 }
 
 /* Code editor */
@@ -1090,10 +1155,15 @@
   background-color: transparent !important;
 }
 
+.code-editor-panel-editor .code-editor-playback-line {
+  background: color-mix(in oklab, var(--accent-red) 12%, transparent);
+  box-shadow: inset 2px 0 0
+    color-mix(in oklab, var(--accent-red) 72%, transparent);
+}
+
 @media (max-width: 1280px) {
   .main-page {
     --code-editor-width: 26.875rem;
-    --visualization-bar-gap: 0.65rem;
   }
 }
 
@@ -1118,8 +1188,6 @@
   .app-header-file-chevron,
   .panel-collapse-control,
   .visualization-panel-toolbar,
-  .visualization-bar-stage,
-  .visualization-bar,
   .playback-controls-reveal {
     transition-duration: 0.01ms;
   }
