@@ -12,7 +12,10 @@ interface AppHeaderProps {
   readonly title: string;
   readonly category: string;
   readonly canRun: boolean;
+  readonly canExportTrace: boolean;
   readonly isRunning: boolean;
+  readonly onExportTrace: () => void;
+  readonly onImportTrace: (file: File) => void;
   readonly onRun: () => void;
   readonly onStop: () => void;
   readonly traceSucceeded: boolean;
@@ -22,12 +25,16 @@ export function AppHeader({
   title,
   category,
   canRun,
+  canExportTrace,
   isRunning,
+  onExportTrace,
+  onImportTrace,
   onRun,
   onStop,
   traceSucceeded,
 }: AppHeaderProps) {
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const fileMenuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -101,6 +108,20 @@ export function AppHeader({
               }
             }}
           >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              hidden
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+
+                if (file !== undefined) {
+                  onImportTrace(file);
+                }
+              }}
+            />
             <button
               className="app-header-file-trigger"
               type="button"
@@ -120,22 +141,31 @@ export function AppHeader({
 
             {isFileMenuOpen ? (
               <div className="app-header-file-dropdown" role="menu">
-                <span
+                <button
                   className="app-header-file-option"
                   role="menuitem"
-                  aria-disabled="true"
+                  type="button"
+                  onClick={() => {
+                    setIsFileMenuOpen(false);
+                    fileInputRef.current?.click();
+                  }}
                 >
                   <FileUp aria-hidden="true" />
                   <span>Import</span>
-                </span>
-                <span
+                </button>
+                <button
                   className="app-header-file-option"
                   role="menuitem"
-                  aria-disabled="true"
+                  type="button"
+                  disabled={!canExportTrace}
+                  onClick={() => {
+                    setIsFileMenuOpen(false);
+                    onExportTrace();
+                  }}
                 >
                   <FileDown aria-hidden="true" />
                   <span>Export</span>
-                </span>
+                </button>
               </div>
             ) : null}
           </div>
