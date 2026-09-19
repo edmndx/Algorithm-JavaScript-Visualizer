@@ -7,9 +7,11 @@ import { playbackMachine } from './playbackMachine';
 import { buildTimeline, getFrame, type TimelineBuildResult } from './timeline';
 
 const EMPTY_SCENE = createInitialScene();
+const EMPTY_COMMANDS: readonly TraceCommand[] = [];
 
 export type PlaybackController = {
   readonly scene: SceneState;
+  readonly commands: readonly TraceCommand[];
   readonly currentStep: number;
   readonly totalSteps: number;
   readonly isPlaying: boolean;
@@ -53,6 +55,7 @@ export function usePlayback(): PlaybackController {
 
   return {
     scene,
+    commands: timeline?.commands ?? EMPTY_COMMANDS,
     currentStep,
     totalSteps,
     isPlaying: snapshot.matches('playing'),
