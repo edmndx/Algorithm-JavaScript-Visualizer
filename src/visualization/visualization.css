@@ -11,12 +11,48 @@
   stroke-width: 2;
 }
 
+.visualization-node {
+  fill: color-mix(in oklab, var(--surface-2) 88%, transparent);
+  stroke: color-mix(in oklab, var(--accent-blue) 62%, var(--border));
+  stroke-width: 2;
+}
+
+.visualization-edge {
+  fill: none;
+  stroke: color-mix(in oklab, var(--muted-foreground) 72%, transparent);
+  stroke-width: 2;
+}
+
+.visualization-arrowhead path {
+  fill: var(--muted-foreground);
+}
+
 .visualization-value,
 .visualization-label,
 .visualization-index,
 .visualization-marker {
   font-family: var(--font-mono);
   text-anchor: middle;
+}
+
+.visualization-node-id,
+.visualization-node-role,
+.visualization-structure-label,
+.visualization-empty-structure {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-anchor: middle;
+}
+
+.visualization-structure-label {
+  font-weight: 600;
+  text-anchor: start;
+  text-transform: uppercase;
+}
+
+.visualization-empty-structure {
+  font-size: 0.75rem;
 }
 
 .visualization-value {
@@ -43,6 +79,26 @@
 
 .visualization-marked .visualization-cell {
   stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
+}
+
+.visualization-marked .visualization-node {
+  stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
+}
+
+.visualization-visited .visualization-cell,
+.visualization-visited .visualization-node {
+  fill: color-mix(in oklab, var(--accent-blue) 18%, var(--surface-2));
+  stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
+}
+
+.visualization-head .visualization-node,
+.visualization-tail .visualization-node {
+  stroke-width: 3;
+}
+
+.visualization-list-connection--previous {
+  stroke-dasharray: 5 4;
+  opacity: 0.8;
 }
 
 .visualization-peeked .visualization-cell {
