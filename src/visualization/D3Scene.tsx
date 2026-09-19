@@ -1,5 +1,16 @@
 import { select } from 'd3';
-import { useLayoutEffect, useRef } from 'react';
+import {
+  useContext,
+  useLayoutEffect,
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
+import { VisualizationZoomContext } from './viewport';
+import {
+  panVisualization,
+  resetVisualizationPan,
+  setVisualizationZoom,
+} from './viewBoxTransition';
 
 import { VISUALIZATION_VIEW_BOX_TRANSITION } from './visualizationTransition';
 
@@ -34,11 +45,36 @@ export default function D3Scene<Scene extends VisualScene>({
   playbackPosition,
 }: D3SceneProps<Scene>) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const zoom = useContext(VisualizationZoomContext);
   const previousPosition = useRef<PlaybackPosition | undefined>(undefined);
+  const previousRender = useRef(render);
+  const dragPosition = useRef<{
+    readonly pointerId: number;
+    readonly x: number;
+    readonly y: number;
+  } | null>(null);
+
+  const stopDragging = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (dragPosition.current?.pointerId !== event.pointerId) return;
+    dragPosition.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  // Zoom updates never rerun joins or interrupt item/natural-bound transitions.
+  useLayoutEffect(() => {
+    if (svgRef.current !== null) setVisualizationZoom(svgRef.current, zoom);
+  }, [zoom]);
 
   useLayoutEffect(() => {
     const svg = svgRef.current;
     if (svg === null) return;
+
+    if (previousRender.current !== render) {
+      resetVisualizationPan(svg);
+      previousRender.current = render;
+    }
 
     const selection = select(svg);
     selection.interrupt();
@@ -80,6 +116,39 @@ export default function D3Scene<Scene extends VisualScene>({
       preserveAspectRatio="xMidYMid meet"
       role="img"
       viewBox="0 0 800 500"
+      onAuxClick={(event) => {
+        if (event.button === 1) event.preventDefault();
+      }}
+      onPointerDown={(event) => {
+        if (event.button !== 1) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragPosition.current = {
+          pointerId: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+        };
+      }}
+      onPointerMove={(event) => {
+        const previous = dragPosition.current;
+        if (previous?.pointerId !== event.pointerId) return;
+        event.preventDefault();
+        panVisualization(
+          event.currentTarget,
+          event.clientX - previous.x,
+          event.clientY - previous.y,
+        );
+        dragPosition.current = {
+          pointerId: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+        };
+      }}
+      onPointerUp={stopDragging}
+      onPointerCancel={stopDragging}
+      onLostPointerCapture={() => {
+        dragPosition.current = null;
+      }}
     />
   );
 }
