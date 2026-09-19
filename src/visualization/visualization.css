@@ -44,3 +44,32 @@
 .visualization-marked .visualization-cell {
   stroke: color-mix(in oklab, var(--accent-blue) 82%, white);
 }
+
+.visualization-peeked .visualization-cell {
+  fill: color-mix(in oklab, var(--accent-red) 18%, var(--surface-2));
+  stroke: var(--accent-red);
+}
+
+.visualization-stack-item.visualization-compared .visualization-cell {
+  fill: color-mix(in oklab, var(--accent-red) 26%, var(--surface-2));
+  stroke: var(--accent-red);
+  stroke-width: 2;
+  filter: drop-shadow(
+    0 0 10px color-mix(in oklab, var(--accent-red) 75%, transparent)
+  );
+}
+
+.visualization-stack-item.visualization-comparison-true .visualization-cell {
+  stroke-width: 2.5;
+}
+
+.visualization-stack-item.visualization-comparison-false .visualization-cell {
+  stroke-dasharray: 4 2;
+}
+
+.visualization-direction-label {
+  fill: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+}

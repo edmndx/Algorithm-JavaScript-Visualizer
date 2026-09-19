@@ -61,6 +61,7 @@ export type MatrixSceneState = SceneStateBase & {
   readonly structure: 'matrix';
 
   readonly values: readonly (readonly TraceValue[])[];
+  readonly itemIds: readonly (readonly string[])[];
 
   readonly comparedPositions: readonly [MatrixPosition, MatrixPosition] | null;
 
@@ -126,6 +127,8 @@ export type StackSceneState = SceneStateBase & {
   readonly structure: 'stack';
 
   readonly values: readonly TraceValue[];
+  readonly itemIds: readonly string[];
+  readonly nextItemId: number;
 
   readonly peekedIndex: number | null;
 
@@ -147,6 +150,8 @@ export type QueueSceneState = SceneStateBase & {
   readonly structure: 'queue';
 
   readonly values: readonly TraceValue[];
+  readonly itemIds: readonly string[];
+  readonly nextItemId: number;
 
   readonly peekedIndex: number | null;
 
@@ -242,6 +247,7 @@ export function createInitializedScene(
         ...base,
         structure,
         values: [],
+        itemIds: [],
         comparedPositions: null,
         markers: {},
       };
@@ -277,6 +283,8 @@ export function createInitializedScene(
         ...base,
         structure,
         values: [],
+        itemIds: [],
+        nextItemId: 0,
         peekedIndex: null,
         comparison: null,
         markers: {},
@@ -286,6 +294,8 @@ export function createInitializedScene(
         ...base,
         structure,
         values: [],
+        itemIds: [],
+        nextItemId: 0,
         peekedIndex: null,
         markers: {},
       };
