@@ -1,10 +1,12 @@
 import Editor from '@monaco-editor/react';
 import { Plus, X } from 'lucide-react';
-import { useState } from 'react';
-import { getVisualizationSourceHint } from '../../instrumentation/sourceContract';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { editor } from 'monaco-editor';
+import type { TraceSourceLocation } from '../../protocol';
 import type { EditorTabsController } from './useEditorTabs';
 
 interface CodeEditorPanelProps {
+  readonly activeSourceLocation: TraceSourceLocation | null;
   readonly editorTabs: EditorTabsController;
 }
 
@@ -56,7 +58,10 @@ const EDITOR_OPTIONS = {
   overviewRulerBorder: false,
 } satisfies import('monaco-editor').editor.IStandaloneEditorConstructionOptions;
 
-export function CodeEditorPanel({ editorTabs }: CodeEditorPanelProps) {
+export function CodeEditorPanel({
+  activeSourceLocation,
+  editorTabs,
+}: CodeEditorPanelProps) {
   const {
     activeSource,
     activeTabId,
@@ -72,6 +77,34 @@ export function CodeEditorPanel({ editorTabs }: CodeEditorPanelProps) {
   } = editorTabs;
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const decorationsRef = useRef<editor.IEditorDecorationsCollection | null>(
+    null,
+  );
+  const modelChangeRef = useRef<import('monaco-editor').IDisposable | null>(
+    null,
+  );
+  const activeSourceLine = activeSourceLocation?.line ?? null;
+  const activeSourceLineRef = useRef(activeSourceLine);
+
+  useLayoutEffect(() => {
+    activeSourceLineRef.current = activeSourceLine;
+    const editorInstance = editorRef.current;
+    const decorations = decorationsRef.current;
+    if (editorInstance === null || decorations === null) return;
+
+    updatePlaybackDecoration(editorInstance, decorations, activeSourceLine);
+  }, [activeSourceLine, activeTabId]);
+
+  useEffect(
+    () => () => {
+      modelChangeRef.current?.dispose();
+      decorationsRef.current?.clear();
+      decorationsRef.current = null;
+      editorRef.current = null;
+    },
+    [],
+  );
 
   function beginRename(tabId: string, currentName: string) {
     selectTab(tabId);
@@ -160,12 +193,6 @@ export function CodeEditorPanel({ editorTabs }: CodeEditorPanelProps) {
         ) : null}
       </div>
 
-      {activeSource.structure === null ? null : (
-        <div className="code-editor-panel-contract-hint">
-          {getVisualizationSourceHint(activeSource.structure)}
-        </div>
-      )}
-
       <div className="code-editor-panel-editor">
         <Editor
           path={`${activeTabId}.js`}
@@ -178,6 +205,27 @@ export function CodeEditorPanel({ editorTabs }: CodeEditorPanelProps) {
             <span className="code-editor-panel-loading">Loading editor…</span>
           }
           onChange={(value) => updateActiveCode(value ?? '')}
+          onMount={(editorInstance) => {
+            modelChangeRef.current?.dispose();
+            decorationsRef.current?.clear();
+            editorRef.current = editorInstance;
+            decorationsRef.current =
+              editorInstance.createDecorationsCollection();
+            modelChangeRef.current = editorInstance.onDidChangeModel(() => {
+              const decorations = decorationsRef.current;
+              if (decorations !== null)
+                updatePlaybackDecoration(
+                  editorInstance,
+                  decorations,
+                  activeSourceLineRef.current,
+                );
+            });
+            updatePlaybackDecoration(
+              editorInstance,
+              decorationsRef.current,
+              activeSourceLineRef.current,
+            );
+          }}
           options={EDITOR_OPTIONS}
         />
       </div>
@@ -187,4 +235,38 @@ export function CodeEditorPanel({ editorTabs }: CodeEditorPanelProps) {
 
 function configureEditorTheme(monaco: typeof import('monaco-editor')) {
   monaco.editor.defineTheme(EDITOR_THEME_NAME, EDITOR_THEME);
+}
+
+function updatePlaybackDecoration(
+  editorInstance: editor.IStandaloneCodeEditor,
+  decorations: editor.IEditorDecorationsCollection,
+  line: number | null,
+): void {
+  const model = editorInstance.getModel();
+  if (line === null || model === null || line > model.getLineCount()) {
+    decorations.clear();
+    return;
+  }
+
+  decorations.set([
+    {
+      range: {
+        startLineNumber: line,
+        startColumn: 1,
+        endLineNumber: line,
+        endColumn: 1,
+      },
+      options: {
+        className: 'code-editor-playback-line',
+        isWholeLine: true,
+      },
+    },
+  ]);
+
+  const isVisible = editorInstance
+    .getVisibleRanges()
+    .some(
+      (range) => line >= range.startLineNumber && line <= range.endLineNumber,
+    );
+  if (!isVisible) editorInstance.revealLineInCenterIfOutsideViewport(line);
 }
