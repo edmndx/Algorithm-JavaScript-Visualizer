@@ -155,6 +155,18 @@ export function getPlaybackFrame(
   );
 }
 
+export function getPlaybackSourceLocation(
+  timeline: TraceTimeline,
+  operationStep: number,
+): TraceSourceLocation | null {
+  if (operationStep === 0) return null;
+
+  return (
+    timeline.commands[operationStep + TRACE_INITIALIZATION_COMMAND_COUNT - 1]
+      ?.source ?? null
+  );
+}
+
 export function getTraceInitializationCommands(
   commands: readonly TraceCommand[],
 ): readonly TraceCommand[] {

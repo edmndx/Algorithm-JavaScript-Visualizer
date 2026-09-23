@@ -1,12 +1,17 @@
 import { useMachine } from '@xstate/react';
 import { useCallback, useMemo } from 'react';
 
-import type { TraceCommand, TraceStructure } from '../protocol/traceTypes';
+import type {
+  TraceCommand,
+  TraceSourceLocation,
+  TraceStructure,
+} from '../protocol/traceTypes';
 import { createPlaceholderScene, type SceneState } from '../scene';
 import { playbackMachine } from './playbackMachine';
 import {
   buildTimeline,
   getPlaybackFrame,
+  getPlaybackSourceLocation,
   type TimelineBuildResult,
 } from './timeline';
 
@@ -16,6 +21,7 @@ export type PlaybackController = {
   readonly scene: SceneState;
   readonly commands: readonly TraceCommand[];
   readonly currentStep: number;
+  readonly activeSourceLocation: TraceSourceLocation | null;
   readonly totalSteps: number;
   readonly isPlaying: boolean;
   readonly canPlay: boolean;
@@ -65,6 +71,10 @@ export function usePlayback(
     scene,
     commands: timeline?.commands ?? EMPTY_COMMANDS,
     currentStep,
+    activeSourceLocation:
+      timeline === null
+        ? null
+        : getPlaybackSourceLocation(timeline, currentStep),
     totalSteps,
     isPlaying: snapshot.matches('playing'),
     canPlay: totalSteps > 0,

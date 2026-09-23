@@ -1191,6 +1191,12 @@ button.visualization-toolbar-placeholder:disabled {
   background-color: transparent !important;
 }
 
+.code-editor-panel-editor .code-editor-playback-line {
+  background: color-mix(in oklab, var(--accent-red) 12%, transparent);
+  box-shadow: inset 2px 0 0
+    color-mix(in oklab, var(--accent-red) 72%, transparent);
+}
+
 @media (max-width: 1280px) {
   .main-page {
     --code-editor-width: 26.875rem;

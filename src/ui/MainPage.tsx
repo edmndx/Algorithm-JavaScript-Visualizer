@@ -57,6 +57,10 @@ export function MainPage() {
     selectedAlgorithm !== null &&
     editorTabs.activeSource.code === selectedAlgorithm.code &&
     editorTabs.activeSource.structure === selectedAlgorithm.structure;
+  const activeSourceLocation =
+    hasGeneratedTrace || hasPreloadedTrace
+      ? playback.activeSourceLocation
+      : null;
   const consoleEntries =
     traceFileError !== null
       ? [traceFileError]
@@ -226,7 +230,10 @@ export function MainPage() {
 
           {isEditorOpen ? (
             <div className="main-page-editor-workbench" id="editor-workbench">
-              <CodeEditorPanel editorTabs={editorTabs} />
+              <CodeEditorPanel
+                activeSourceLocation={activeSourceLocation}
+                editorTabs={editorTabs}
+              />
               <ConsolePanel entries={consoleEntries} />
             </div>
           ) : null}
